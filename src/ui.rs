@@ -1,11 +1,27 @@
 use crate::cli::Command;
 use crate::consts::{APP_NAME,APP_VERSION};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn current_year() -> u64 {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    1970 + (secs / 31_557_600) // segundos em um ano solar médio
+}
 
 pub fn print_banner() {
-    println!("╔══════════════════════════════════════╗");
-    println!("║           {}             ║", APP_NAME);
-    println!("║           versão {}               ║", APP_VERSION);
-    println!("╚══════════════════════════════════════╝");
+    let separator = "=".repeat(52);
+    println!();
+    println!("  __________________________________________________");
+    println!(" |                                                  |");
+    println!(" |   /\\_/\\       {:<28}       |", APP_NAME);
+    println!(" |  ( o,o )      v{:<27}       |", APP_VERSION);
+    println!(" |  /)   (\\      {:<28}|", format!("© {} - Rafael de Figueiredo Alves", current_year()));
+    println!(" |  \\/\\_/\\/                                         |");
+    println!(" |__________________________________________________|");
+    println!("  {}", separator);
     println!();
 }
 
