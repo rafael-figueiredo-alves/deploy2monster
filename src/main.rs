@@ -2,6 +2,8 @@
 mod ui;
 mod cli;
 mod consts;
+mod projects;
+mod input;
 
 fn main() {
     ui::print_banner();
