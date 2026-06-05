@@ -1,0 +1,13 @@
+{
+  "name": "eTasks-server",
+  "publish_folder": "C:\\MeusProjetos\\Publish",
+  "project_file": "C:\\MeusProjetos\\eTasks-server\\eTasks-server\\eTasks-server\\eTasks-server.csproj",
+  "ftp_settings": {
+    "ftp_host": "site53116.siteasp.net",
+    "ftp_port": 21,
+    "ftp_user": "site53116",
+    "ftp_password": "n#9C@8Pq7Bj%"
+  },
+  "sql_connection": "Server=db40038.public.databaseasp.net; Database=db40038.databaseasp.net; Uid=db40038.databaseasp.net; Pwd=d?8G7M=yP!e2; SslMode=Preferred;",
+  "sql_script": "C:\\MeusProjetos\\eTasks-server\\Scripts_servidor.txt"
+}

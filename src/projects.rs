@@ -32,6 +32,8 @@ pub fn create_project_interactive(name: &str) -> Result<(), String> {
         ));
     }
 
+    println!("→ Criando novo projeto: {} ... ", name);
+    println!();
     println!("  Configurando projeto '{}'...", name);
     println!("  (Pressione Enter para aceitar o valor padrão quando disponível)");
     println!();
@@ -93,4 +95,48 @@ fn resolve_project_path(name: &str) -> Result<PathBuf, String> {
         .join("projects");
 
     Ok(projects_dir.join(format!("{}.d2mproj", name)))
+}
+
+pub fn load_project(name: &str) -> Result<Project, String> {
+    let path = resolve_project_path(name)?;
+
+    if !path.exists() {
+        // busca case-insensitive
+        return find_project_case_insensitive(name);
+    }
+
+    read_project_file(&path)
+}
+
+fn find_project_case_insensitive(name: &str) -> Result<Project, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Erro ao obter executável: {}", e))?;
+
+    let projects_dir = exe_path
+        .parent()
+        .ok_or("Erro ao obter pasta do executável")?
+        .join("projects");
+
+    let name_lower = name.to_lowercase();
+
+    let entries = std::fs::read_dir(&projects_dir)
+        .map_err(|_| format!("Pasta 'projects' não encontrada."))?;
+
+    for entry in entries.flatten() {
+        let fname = entry.file_name().to_string_lossy().to_lowercase();
+        let expected = format!("{}.d2mproj", name_lower);
+        if fname == expected {
+            return read_project_file(&entry.path());
+        }
+    }
+
+    Err(format!("Projeto '{}' não encontrado.", name))
+}
+
+fn read_project_file(path: &std::path::Path) -> Result<Project, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Erro ao ler arquivo de projeto: {}", e))?;
+
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Erro ao interpretar projeto JSON: {}", e))
 }

@@ -1,7 +1,7 @@
 use crate::cli::Command;
 use crate::consts::{APP_NAME,APP_VERSION};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::projects;
+use crate::{deployer, logger, projects};
 
 fn current_year() -> u64 {
     let secs = SystemTime::now()
@@ -37,14 +37,24 @@ fn print_help() {
 
 pub fn print_command_result(command: &Command) {
     match command {
-        Command::New(name) => {
-            print!("→ Criando novo projeto: {} ... ", name);
+        Command::New(name) => {            
             if let Err(e) = projects::create_project_interactive(name) {
                 eprintln!("✘ Erro: {}", e);
                 std::process::exit(1);                
             }
         },
-        Command::Deploy(name) => println!("→ Iniciando deploy do projeto: {}", name ),
+        Command::Deploy(name) => {
+            match projects::load_project(name) {
+                Err(e) => {
+                    eprintln!("✘ {}", e);
+                    std::process::exit(1);
+                }
+                Ok(proj) => {
+                    logger::init(&proj.name);
+                    deployer::run(&proj);
+                }
+            }
+        },
         Command::Help => print_help(),
         Command::Unknown(cmd) => {
             eprintln!("Comando desconhecido: '{}'", cmd);

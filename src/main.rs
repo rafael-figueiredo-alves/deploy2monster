@@ -4,6 +4,8 @@ mod cli;
 mod consts;
 mod projects;
 mod input;
+mod logger;
+mod deployer;
 
 fn main() {
     ui::print_banner();
