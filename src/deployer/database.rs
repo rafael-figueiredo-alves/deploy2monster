@@ -1,4 +1,4 @@
-use mysql::{Pool, prelude::Queryable};
+use mysql::{Pool, prelude::Queryable, OptsBuilder};
 use crate::logger;
 use crate::projects::Project;
 use std::fs;
@@ -14,15 +14,31 @@ pub fn run(project: &Project) -> Result<(), String> {
     let content = fs::read_to_string(script_path)
         .map_err(|e| format!("Erro ao ler script SQL '{}': {}", script_path, e))?;
 
-    let url = to_mysql_url(&project.sql_connection);
+    let db = &project.database_settings;
+
     logger::info(&format!(
-        "Conectando ao banco: mysql://{}:***@{}",
-        user_from(&url),
-        host_from(&url)
+        "Conectando ao banco: {}@{}:{}/{}",
+        db.user, db.host, db.port, db.database
     ));
 
-    let pool = Pool::new(url.as_str())
-        .map_err(|e| format!("Erro ao conectar ao banco: {}", e))?;
+    let opts = OptsBuilder::new()
+        .ip_or_hostname(Some(&db.host))
+        .tcp_port(db.port)
+        .user(Some(&db.user))
+        .pass(Some(&db.password))
+        .db_name(Some(&db.database));
+
+    let pool = Pool::new(opts)
+        .map_err(|e| {
+            if e.to_string().contains("Access denied") {
+                format!(
+                    "Acesso negado ao banco '{}'. Verifique usuário, senha e se o acesso remoto está habilitado no painel.",
+                    db.host
+                )
+            } else {
+                format!("Erro ao conectar ao banco: {}", e)
+            }
+        })?;
 
     let mut conn = pool.get_conn()
         .map_err(|e| format!("Erro ao obter conexão: {}", e))?;
@@ -42,7 +58,7 @@ pub fn run(project: &Project) -> Result<(), String> {
             Err(e) => {
                 errors += 1;
                 logger::error(&format!("[{}/{}] ERRO — {}", i + 1, total, preview));
-                logger::error(&format!("  Detalhe: {}", e));
+                logger::error(&format!("         Detalhe: {}", e));
             }
         }
     }
@@ -53,25 +69,75 @@ pub fn run(project: &Project) -> Result<(), String> {
             errors, total
         ));
     } else {
-        logger::info(&format!("Script concluído. {} statement(s) executados.", total));
+        logger::info(&format!(
+            "Script concluído. {} statement(s) executados com sucesso.",
+            total
+        ));
     }
 
     Ok(())
 }
 
 fn parse_statements(content: &str) -> Vec<String> {
-    content
-        .split(';')
-        .map(|s| s.trim().to_string())
-        .filter(|s| {
-            let clean = remove_comments(s).trim().to_string();
-            !clean.is_empty()
-        })
-        .collect()
+    let mut statements = Vec::new();
+    let mut current = String::new();
+    let mut delimiter = ";".to_string();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+
+        // detecta mudança de DELIMITER
+        if trimmed.to_uppercase().starts_with("DELIMITER") {
+            let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+            if let Some(new_delim) = parts.get(1) {
+                // flush do que tinha antes
+                let stmt = current.trim().to_string();
+                if !stmt.is_empty() {
+                    let clean = remove_comments(&stmt).trim().to_string();
+                    if !clean.is_empty() {
+                        statements.push(stmt);
+                    }
+                }
+                current = String::new();
+                delimiter = new_delim.trim().to_string();
+            }
+            continue;
+        }
+
+        current.push_str(line);
+        current.push('\n');
+
+        // verifica se a linha termina com o delimiter atual
+        if trimmed.ends_with(&delimiter) {
+            let stmt = current
+                .trim()
+                .trim_end_matches(&delimiter as &str)
+                .trim()
+                .to_string();
+
+            if !stmt.is_empty() {
+                let clean = remove_comments(&stmt).trim().to_string();
+                if !clean.is_empty() {
+                    statements.push(stmt);
+                }
+            }
+            current = String::new();
+        }
+    }
+
+    // flush final
+    let stmt = current.trim().to_string();
+    if !stmt.is_empty() {
+        let clean = remove_comments(&stmt).trim().to_string();
+        if !clean.is_empty() {
+            statements.push(stmt);
+        }
+    }
+
+    statements
 }
 
 fn remove_comments(input: &str) -> String {
-    // remove comentários de bloco /* ... */
     let mut result = String::new();
     let mut chars = input.chars().peekable();
 
@@ -100,70 +166,4 @@ fn preview_stmt(stmt: &str) -> String {
     } else {
         first_line.to_string()
     }
-}
-
-fn to_mysql_url(connection_string: &str) -> String {
-    if connection_string.starts_with("mysql://") {
-        return connection_string.to_string();
-    }
-
-    let mut server   = "localhost".to_string();
-    let mut database = String::new();
-    let mut user     = String::new();
-    let mut password = String::new();
-    let mut port     = "3306".to_string();
-
-    for part in connection_string.split(';') {
-        let part = part.trim();
-        if part.is_empty() { continue; }
-
-        // splitn(2) garante que valores com '=' (como senhas) não sejam cortados
-        let mut kv = part.splitn(2, '=');
-        let key = kv.next().unwrap_or("").trim().to_lowercase();
-        let val = kv.next().unwrap_or("").trim().to_string();
-
-        match key.as_str() {
-            "server" | "host"     => server   = val,
-            "database" | "db"     => database = val,
-            "uid" | "user"        => user     = val,
-            "pwd" | "password"    => password = val,
-            "port"                => port     = val,
-            _                     => {} // ignora SslMode e outros
-        }
-    }
-
-    // encode de caracteres especiais na senha
-    let password_encoded = encode_password(&password);
-
-    format!(
-        "mysql://{}:{}@{}:{}/{}",
-        user, password_encoded, server, port, database
-    )
-}
-
-fn user_from(url: &str) -> &str {
-    url.splitn(3, '/').nth(2)
-        .and_then(|s| s.split(':').next())
-        .unwrap_or("?")
-}
-
-fn host_from(url: &str) -> &str {
-    url.splitn(2, '@').nth(1)
-        .and_then(|s| s.split('/').next())
-        .unwrap_or("?")
-}
-
-fn encode_password(pwd: &str) -> String {
-    // caracteres que quebram a URL precisam de percent-encoding
-    pwd.chars().map(|c| match c {
-        '@'  => "%40".to_string(),
-        '/'  => "%2F".to_string(),
-        '?'  => "%3F".to_string(),
-        '#'  => "%23".to_string(),
-        '!'  => "%21".to_string(),
-        '='  => "%3D".to_string(),
-        '+'  => "%2B".to_string(),
-        ' '  => "%20".to_string(),
-        c    => c.to_string(),
-    }).collect()
 }

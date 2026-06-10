@@ -1,5 +1,6 @@
 use crate::cli::Command;
 use crate::consts::{APP_NAME,APP_VERSION};
+use crate::deployer::database;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{deployer, logger, projects};
 
@@ -30,9 +31,10 @@ fn print_help() {
     println!("Uso: deploy2monster <comando>");
     println!();
     println!("Comandos disponíveis:");
-    println!("  -new <nome_do_projeto>      Cria um novo arquivo de projeto (.json)");
-    println!("  -deploy <nome_do_projeto>   Executa o deploy da aplicação");
-    println!("  -help                       Exibe esta mensagem");
+    println!("  -new <nome_do_projeto>        Cria um novo arquivo de projeto (.json)");
+    println!("  -deploy <nome_do_projeto>     Executa o deploy da aplicação");
+    println!("  -dbUpdate <nome_do_projeto>   Executa a atualização do banco de dados");
+    println!("  -help                         Exibe esta mensagem");
 }
 
 pub fn print_command_result(command: &Command) {
@@ -55,6 +57,18 @@ pub fn print_command_result(command: &Command) {
                 }
             }
         },
+        Command::DbUpdate(name) => {
+            match projects::load_project(name) {
+                Err(e) => {
+                    eprintln!("✘ {}", e);
+                    std::process::exit(1);
+                }
+                Ok(proj) => {
+                    logger::init(&proj.name);
+                    _ = database::run(&proj);
+                }
+            }
+        },        
         Command::Help => print_help(),
         Command::Unknown(cmd) => {
             eprintln!("Comando desconhecido: '{}'", cmd);

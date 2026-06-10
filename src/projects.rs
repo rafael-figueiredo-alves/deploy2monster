@@ -4,6 +4,15 @@ use serde::{Serialize, Deserialize};
 use crate::input;
 
 #[derive(Serialize, Deserialize)]
+pub struct DatabaseSettings {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub database: String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct FtpSettings {
     pub ftp_host: String,
     pub ftp_port: u16,
@@ -17,7 +26,7 @@ pub struct Project {
     pub publish_folder: String,
     pub project_file:   String,
     pub ftp_settings: FtpSettings,
-    pub sql_connection: String,
+    pub database_settings: DatabaseSettings,
     pub sql_script: String,
 }
 
@@ -51,7 +60,11 @@ pub fn create_project_interactive(name: &str) -> Result<(), String> {
 
     println!();
     println!("  — Banco de Dados —");
-    let sql_connection = input::ask("Connection string");
+    let db_host = input::ask("Endereço do banco de dados");
+    let db_port = input::ask_u16("Porta do banco de dados", 5432);
+    let db_user = input::ask("Usuário do banco de dados");
+    let db_password = input::ask("Senha do banco de dados");
+    let db_database = input::ask("Nome do banco de dados");
     let sql_script     = input::ask("Caminho do script SQL");
 
     let project = Project {
@@ -64,7 +77,13 @@ pub fn create_project_interactive(name: &str) -> Result<(), String> {
             ftp_user,
             ftp_password,
         },
-        sql_connection,
+        database_settings: DatabaseSettings {
+            host: db_host,
+            port: db_port,
+            user: db_user,
+            password: db_password,
+            database: db_database,
+        },
         sql_script,
     };
 
