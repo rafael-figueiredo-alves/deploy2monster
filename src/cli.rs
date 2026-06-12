@@ -2,6 +2,7 @@ pub enum Command {
     New(String),
     Deploy(String),
     DbUpdate(String),
+    Version,
     Help,
     Unknown(String),
     None,
@@ -31,7 +32,8 @@ fn parse_command(args: &[String]) -> Command {
                 Some(name) => Command::DbUpdate(name.to_string()),
                 None => Command::Unknown("-dbUpdate requer o nome do projeto a ser atualizado".to_string()),
             }
-        }        
+        }    
+        Some("-version")     => Command::Version,    
         Some("-help")     => Command::Help,
         Some(other) => Command::Unknown(other.to_string()),
         None              => Command::None,

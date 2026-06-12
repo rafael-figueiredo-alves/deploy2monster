@@ -4,6 +4,7 @@ pub mod publisher;
 
 use crate::logger;
 use crate::projects::Project;
+use crate::ui::{write_info, write_warning};
 
 pub fn run(project: &Project) {
     logger::info(&format!("Iniciando deploy do projeto '{}'", project.name));
@@ -37,14 +38,14 @@ pub fn run(project: &Project) {
 
     if let Some(path) = logger::log_path() {
         println!();
-        println!("  📄 Log salvo em: {}", path.display());
+        write_info(&format!("  📄 Log salvo em: {}", path.display()));
     }
 }
 
 fn abort() {
     if let Some(path) = logger::log_path() {
         eprintln!();
-        eprintln!("  Deploy abortado. Consulte o log: {}", path.display());
+        write_warning(&format!("Deploy abortado. Consulte o log: {}", path.display()));
     }
     std::process::exit(1);
 }

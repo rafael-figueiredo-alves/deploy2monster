@@ -3,6 +3,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use crate::ui::{write_error, write_info, write_warning};
+
 static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 pub fn init(project_name: &str) {
@@ -39,9 +41,9 @@ fn log(level: &str, msg: &str) {
 
     // tela
     match level {
-        "ERROR" => eprintln!("  ✘ {}", msg),
-        "WARN"  => println!("  ⚠ {}", msg),
-        _       => println!("  → {}", msg),
+        "ERROR" => write_error(&format!(" Erro: {}", msg)),
+        "WARN"  => write_warning(&format!(" Atenção: {}", msg)),
+        _       => write_info(&format!(" Info: {}", msg)),
     }
 
     // arquivo
