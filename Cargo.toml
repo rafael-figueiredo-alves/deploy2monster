@@ -11,3 +11,7 @@ mysql      = "25"    # driver MySQL nativo
 rayon      = "1"     # biblioteca de paralelismo
 rpassword  = "7"     # biblioteca de ocultar senha
 crossterm  = "0.27"  # biblioteca para detectar ESC
+chrono     = "0.4"   # biblioteca para manipulação de datetime
+aes-gcm    = "0.10"  # biblioteca criptografia
+rand       = "0.8"   # biblioteca de aleatório
+hex        = "0.4"   # biblioteca de hexadecimal

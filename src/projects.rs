@@ -172,7 +172,6 @@ fn save_project(project: &Project, path: &PathBuf) -> Result<(), String> {
         .map_err(|e| format!("Erro ao gravar arquivo: {}", e))?;
 
     println!();
-    write_success(&format!(" Projeto '{}' criado em: {}", project.name, path.display()));
     Ok(())
 }
 
@@ -274,5 +273,193 @@ fn validate_sql_script(path: &str) -> Result<(), String> {
         return Err("O arquivo não parece conter statements SQL válidos.".to_string());
     }
 
+    Ok(())
+}
+
+pub fn list_projects() -> Result<Vec<String>, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Erro ao obter caminho do executável: {}", e))?;
+
+    let projects_dir = exe_path.parent()
+        .ok_or_else(|| "Não foi possível determinar o diretório do executável".to_string())?
+        .join("projects");
+
+    if !projects_dir.exists() {
+        return Ok(vec![]); // sem pasta, sem projetos
+    }
+
+    let mut projects = vec![];
+
+    for entry in std::fs::read_dir(&projects_dir)
+        .map_err(|e| format!("Erro ao ler pasta 'projects': {}", e))? 
+    {
+        let entry = entry.map_err(|e| format!("Erro ao acessar entrada de projeto: {}", e))?;
+        let fname = entry.file_name().to_string_lossy().to_string();
+        if fname.ends_with(".d2mproj") {
+            let name = fname.trim_end_matches(".d2mproj").to_string();
+            projects.push(name);
+        }
+    }
+
+    Ok(projects)
+}
+
+pub fn edit_project_interactive(name: &str) -> Result<(), String> {
+    let project_path = resolve_project_path(name)?;
+    let project = find_project_case_insensitive(name)?;
+
+    macro_rules! ask_or_cancel {
+        ($expr:expr) => {
+            match $expr {
+                Some(v) => v,
+                None => {
+                    crate::ui::write_warning("Edição cancelada. Nenhuma alteração foi salva.");
+                    return Ok(());
+                }
+            }
+        };
+    }
+
+    println!("→ Editando projeto: {}...", project.name);
+    println!();
+    println!("  (Pressione Enter para manter o valor atual)");
+    println!("  (Pressione ESC a qualquer momento para cancelar)");
+    println!();
+
+    println!("  — Geral —");
+    let project_file = ask_or_cancel!(input::ask_validated_with_default(
+        "Caminho do arquivo .csproj",
+        &project.project_file,
+        |v| {
+            if !std::path::Path::new(v).exists() {
+                Err(format!("Arquivo não encontrado: {}", v))
+            } else if !v.ends_with(".csproj") {
+                Err("O arquivo deve ter extensão .csproj".to_string())
+            } else {
+                Ok(())
+            }
+        },
+    ));
+
+    let publish_folder = ask_or_cancel!(input::ask_validated_with_default(
+        "Pasta de publicação",
+        &project.publish_folder,
+        |v| {
+            if !std::path::Path::new(v).exists() {
+                Err(format!("Pasta não encontrada: {}", v))
+            } else {
+                Ok(())
+            }
+        },
+    ));
+
+    println!();
+    println!("  — FTP —");
+    let ftp_host = ask_or_cancel!(input::ask_validated_with_default(
+        "Host FTP",
+        &project.ftp_settings.ftp_host,
+        |v| {
+            if v.is_empty() { Err("Host FTP é obrigatório.".to_string()) } else { Ok(()) }
+        },
+    ));
+
+    let ftp_port     = ask_or_cancel!(input::ask_u16_with_default(
+        "Porta FTP",
+        project.ftp_settings.ftp_port
+    ));
+
+    let ftp_user     = ask_or_cancel!(input::ask_validated_with_default(
+        "Usuário FTP",
+        &project.ftp_settings.ftp_user,
+        |v| {
+            if v.is_empty() { Err("Usuário FTP é obrigatório.".to_string()) } else { Ok(()) }
+        },
+    ));
+
+    println!("  Senha FTP atual: (oculta) — pressione Enter para manter ou digite nova senha");
+    let ftp_password = ask_or_cancel!(input::ask_password_optional(
+        "Nova senha FTP",
+        &project.ftp_settings.ftp_password
+    ));
+
+    println!();
+    println!("  — Banco de Dados —");
+    let db_host = ask_or_cancel!(input::ask_validated_with_default(
+        "Endereço do banco de dados",
+        &project.database_settings.host,
+        |v| {
+            if v.is_empty() { Err("Endereço do banco é obrigatório.".to_string()) } else { Ok(()) }
+        },
+    ));
+
+    let db_port = ask_or_cancel!(input::ask_u16_with_default(
+        "Porta do banco de dados",
+        project.database_settings.port
+    ));
+
+    let db_user = ask_or_cancel!(input::ask_validated_with_default(
+        "Usuário do banco de dados",
+        &project.database_settings.user,
+        |v| {
+            if v.is_empty() { Err("Usuário do banco é obrigatório.".to_string()) } else { Ok(()) }
+        },
+    ));
+
+    println!("  Senha do banco atual: (oculta) — pressione Enter para manter ou digite nova senha");
+    let db_password = ask_or_cancel!(input::ask_password_optional(
+        "Nova senha do banco",
+        &project.database_settings.password
+    ));
+
+    let db_database = ask_or_cancel!(input::ask_validated_with_default(
+        "Nome do banco de dados",
+        &project.database_settings.database,
+        |v| {
+            if v.is_empty() { Err("Nome do banco é obrigatório.".to_string()) } else { Ok(()) }
+        },
+    ));
+
+    let sql_script = loop {
+        match input::ask_optional_with_default(
+            "Caminho do script SQL (.sql ou .txt)",
+            &project.sql_script,
+        ) {
+            None => {
+                crate::ui::write_warning("Edição cancelada. Nenhuma alteração foi salva.");
+                return Ok(());
+            }
+            Some(path) if path.is_empty() => break path.to_string(),
+            Some(path) => match validate_sql_script(&path) {
+                Ok(_) => {
+                    crate::ui::write_success("Script SQL validado.");
+                    break path;
+                }
+                Err(msg) => crate::ui::write_error(&msg),
+            },
+        }
+    };
+
+    let updated = Project {
+        name: project.name.clone(),
+        publish_folder,
+        project_file,
+        ftp_settings: FtpSettings {
+            ftp_host,
+            ftp_port,
+            ftp_user,
+            ftp_password,
+        },
+        database_settings: DatabaseSettings {
+            host:     db_host,
+            port:     db_port,
+            user:     db_user,
+            password: db_password,
+            database: db_database,
+        },
+        sql_script,
+    };
+
+    save_project(&updated, &project_path)?;
+    crate::ui::write_success(&format!("Projeto '{}' atualizado com sucesso!", updated.name));
     Ok(())
 }

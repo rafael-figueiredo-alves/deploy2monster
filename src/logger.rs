@@ -2,6 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use chrono::Local;
 
 use crate::ui::{write_error, write_info, write_warning};
 
@@ -55,21 +56,5 @@ fn log(level: &str, msg: &str) {
 }
 
 fn chrono_now_str() -> String {
-    // sem chrono por ora — usa std::time para timestamp simples
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let s = secs % 60;
-    let m = (secs / 60) % 60;
-    let h = (secs / 3600) % 24;
-    let days = secs / 86400;
-    // ano aproximado para nome do arquivo
-    let year = 1970 + days / 365;
-    let day_of_year = days % 365;
-    let month = day_of_year / 30 + 1;
-    let day = day_of_year % 30 + 1;
-
-    format!("{:04}{:02}{:02}_{:02}{:02}{:02}", year, month, day, h, m, s)
+    Local::now().format("%Y%m%d_%H%M%S").to_string()
 }

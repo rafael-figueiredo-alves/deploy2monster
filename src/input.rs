@@ -51,6 +51,75 @@ where
     }
 }
 
+pub fn ask_validated_with_default<F>(
+    question: &str,
+    default: &str,
+    validator: F,
+) -> Option<String>
+where
+    F: Fn(&str) -> Result<(), String>,
+{
+    loop {
+        match ask_with_default(question, default) {
+            None => return None,
+            Some(value) => match validator(&value) {
+                Ok(_)    => return Some(value),
+                Err(msg) => crate::ui::write_error(&msg),
+            },
+        }
+    }
+}
+
+pub fn ask_u16_with_default(question: &str, default: u16) -> Option<u16> {
+    loop {
+        match ask_with_default(question, &default.to_string()) {
+            None => return None,
+            Some(input) => match input.parse::<u16>() {
+                Ok(v)  => return Some(v),
+                Err(_) => crate::ui::write_error("Digite um número válido entre 1 e 65535."),
+            },
+        }
+    }
+}
+
+pub fn ask_optional_with_default(question: &str, default: &str) -> Option<String> {
+    print!(
+        "  {} (opcional) [{}]: ",
+        question,
+        if default.is_empty() { "vazio" } else { default }
+    );
+    io::stdout().flush().unwrap();
+
+    match read_line_or_esc() {
+        None        => None,
+        Some(input) => {
+            let trimmed = input.trim().to_string();
+            if trimmed.is_empty() {
+                Some(default.to_string()) // mantém o valor atual
+            } else {
+                Some(trimmed)
+            }
+        }
+    }
+}
+
+pub fn ask_password_optional(question: &str, current: &str) -> Option<String> {
+    match rpassword::prompt_password(format!("  {}: ", question)) {
+        Ok(pwd) => {
+            let trimmed = pwd.trim().to_string();
+            if trimmed.is_empty() {
+                Some(current.to_string()) // mantém senha atual
+            } else {
+                Some(trimmed)
+            }
+        }
+        Err(_) => {
+            crate::ui::write_error("Erro ao ler senha.");
+            None
+        }
+    }
+}
+
 pub fn ask_optional(question: &str) -> Option<String> {
     print!("  {} (opcional): ", question);
     io::stdout().flush().unwrap();

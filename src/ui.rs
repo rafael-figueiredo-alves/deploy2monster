@@ -1,15 +1,12 @@
 use crate::cli::Command;
+use crate::config;
+use chrono::Local;
+use chrono::Datelike;
 use crate::consts::{APP_NAME,APP_VERSION};
-use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{deployer, logger, projects};
 
-fn current_year() -> u64 {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    1970 + (secs / 31_557_600) // segundos em um ano solar médio
+fn current_year() -> i32 {
+    Local::now().year()
 }
 
 pub fn write_error(msg: &str) {
@@ -47,6 +44,8 @@ fn print_help() {
     println!("  -new <nome_do_projeto>        Cria um novo arquivo de projeto (.json)");
     println!("  -deploy <nome_do_projeto>     Executa o deploy da aplicação");
     println!("  -dbUpdate <nome_do_projeto>   Executa a atualização do banco de dados");
+    println!("  -list                         Lista os projetos disponíveis");
+    println!("  -edit <nome_do_projeto>       Edita um projeto existente");
     println!("  -version                      Obtenha a versão atual do sistema");
     println!("  -help                         Exibe esta mensagem");
 }
@@ -56,7 +55,7 @@ fn print_version() {
     println!("Versão do Deploy2Monster: {:<27}", APP_VERSION)
 }
 
-pub fn print_command_result(command: &Command) {
+pub fn print_command_result(command: &Command, config: &config::AppConfig) {
     match command {
         Command::New(name) => {            
             if let Err(e) = projects::create_project_interactive(name) {
@@ -90,9 +89,35 @@ pub fn print_command_result(command: &Command) {
                     }
                 }
             }
-        },   
+        },  
+        Command::List => {
+            match projects::list_projects() {
+                Err(e) => {
+                    write_error(&format!("Erro: {}", e));
+                    std::process::exit(1);
+                }
+                Ok(list) if list.is_empty() => {
+                        println!("  Nenhum projeto cadastrado.");
+                        println!("  Use -new <nome> para criar um projeto.");
+                    }
+                Ok(list) => {
+                        println!("  Projetos cadastrados ({}):", list.len());
+                        println!();
+                       for (i, name) in list.iter().enumerate() {
+                        println!("  {:>3}. {}", i + 1, name);
+                    }
+                }
+            }
+            println!();
+        }, 
         Command::Version => print_version(),     
         Command::Help => print_help(),
+        Command::Edit(name) => {
+                if let Err(e) = projects::edit_project_interactive(name) {
+                    write_error(&e);
+                    std::process::exit(1);
+                }
+        }
         Command::Unknown(cmd) => {
             write_error(&format!("Comando desconhecido: '{}'", cmd));
             write_info("Use -help para ver os comandos disponíveis.");
