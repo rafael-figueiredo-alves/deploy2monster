@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
-use crate::{input, ui::write_success};
+use crate::crypto;
+
+use crate::{input};
 
 #[derive(Serialize, Deserialize)]
 pub struct DatabaseSettings {
@@ -30,7 +32,7 @@ pub struct Project {
     pub sql_script: String,
 }
 
-pub fn create_project_interactive(name: &str) -> Result<(), String> {
+pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String> {
     let project_path = resolve_project_path(name)?;
 
     if project_path.exists() {
@@ -156,13 +158,34 @@ pub fn create_project_interactive(name: &str) -> Result<(), String> {
         sql_script,
     };
 
-    save_project(&project, &project_path)?;
+    save_project(&project, &project_path, key)?;
     crate::ui::write_success(&format!("Projeto '{}' criado com sucesso!", name));
     Ok(())
 }
 
-fn save_project(project: &Project, path: &PathBuf) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(project)
+fn save_project(project: &Project, path: &PathBuf, key: &[u8; 32]) -> Result<(), String> {
+    // cria uma versão com senhas criptografadas para gravar
+    let to_save = Project {
+        name:           project.name.clone(),
+        publish_folder: project.publish_folder.clone(),
+        project_file:   project.project_file.clone(),
+        sql_script:     project.sql_script.clone(),
+        ftp_settings: FtpSettings {
+            ftp_host:     project.ftp_settings.ftp_host.clone(),
+            ftp_port:     project.ftp_settings.ftp_port,
+            ftp_user:     project.ftp_settings.ftp_user.clone(),
+            ftp_password: crypto::encrypt(&project.ftp_settings.ftp_password, key)?,
+        },
+        database_settings: DatabaseSettings {
+            host:     project.database_settings.host.clone(),
+            port:     project.database_settings.port,
+            user:     project.database_settings.user.clone(),
+            password: crypto::encrypt(&project.database_settings.password, key)?,
+            database: project.database_settings.database.clone(),
+        },
+    };    
+    
+    let json = serde_json::to_string_pretty(&to_save)
         .map_err(|e| format!("Erro ao serializar projeto: {}", e))?;
 
     fs::create_dir_all(path.parent().unwrap())
@@ -186,15 +209,16 @@ fn resolve_project_path(name: &str) -> Result<PathBuf, String> {
     Ok(projects_dir.join(format!("{}.d2mproj", name)))
 }
 
-pub fn load_project(name: &str) -> Result<Project, String> {
-    let path = resolve_project_path(name)?;
+pub fn load_project(name: &str, key: &[u8; 32]) -> Result<Project, String> {
+    let mut project = find_project_case_insensitive(name)?;
 
-    if !path.exists() {
-        // busca case-insensitive
-        return find_project_case_insensitive(name);
-    }
+    project.ftp_settings.ftp_password =
+        crypto::decrypt(&project.ftp_settings.ftp_password, key)?;
 
-    read_project_file(&path)
+    project.database_settings.password =
+        crypto::decrypt(&project.database_settings.password, key)?;
+
+    Ok(project)
 }
 
 fn find_project_case_insensitive(name: &str) -> Result<Project, String> {
@@ -304,7 +328,7 @@ pub fn list_projects() -> Result<Vec<String>, String> {
     Ok(projects)
 }
 
-pub fn edit_project_interactive(name: &str) -> Result<(), String> {
+pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String> {
     let project_path = resolve_project_path(name)?;
     let project = find_project_case_insensitive(name)?;
 
@@ -459,7 +483,95 @@ pub fn edit_project_interactive(name: &str) -> Result<(), String> {
         sql_script,
     };
 
-    save_project(&updated, &project_path)?;
+    save_project(&updated, &project_path, key)?;
     crate::ui::write_success(&format!("Projeto '{}' atualizado com sucesso!", updated.name));
     Ok(())
+}
+
+pub fn export_project(name: &str, dest_path: &str, key: &[u8; 32]) -> Result<(), String> {
+    let project = find_project_case_insensitive(name)?;
+
+    let dest = std::path::Path::new(dest_path);
+
+    // se for pasta, usa nome do arquivo original
+    let dest_file = if dest.is_dir() {
+        dest.join(format!("{}.d2mproj", project.name))
+    } else if dest.extension().is_some() {
+        dest.to_path_buf()
+    } else {
+        // assume que é pasta mas ainda não existe — cria
+        std::fs::create_dir_all(dest)
+            .map_err(|e| format!("Erro ao criar pasta de destino: {}", e))?;
+        dest.join(format!("{}.d2mproj", project.name))
+    };
+
+    let ftp_password = crypto::decrypt(&project.ftp_settings.ftp_password, key)?;
+    let db_password = crypto::decrypt(&project.database_settings.password, key)?;
+
+    // exporta com senha ofuscada
+    let export = ProjectExport {
+        name:              project.name.clone(),
+        publish_folder:    project.publish_folder.clone(),
+        project_file:      project.project_file.clone(),
+        ftp_settings: FtpSettingsExport {
+            ftp_host:     project.ftp_settings.ftp_host.clone(),
+            ftp_port:     project.ftp_settings.ftp_port,
+            ftp_user:     project.ftp_settings.ftp_user.clone(),            
+            ftp_password: obfuscate(&ftp_password),
+        },
+        database_settings: DatabaseSettingsExport {
+            host:     project.database_settings.host.clone(),
+            port:     project.database_settings.port,
+            user:     project.database_settings.user.clone(),
+            password: obfuscate(&db_password),
+            database: project.database_settings.database.clone(),
+        },
+        sql_script: project.sql_script.clone(),
+    };
+
+    let json = serde_json::to_string_pretty(&export)
+        .map_err(|e| format!("Erro ao serializar projeto: {}", e))?;
+
+    std::fs::write(&dest_file, json)
+        .map_err(|e| format!("Erro ao gravar arquivo exportado: {}", e))?;
+
+    println!("  Exportado para: {}", dest_file.display());
+    Ok(())
+}
+
+// ofusca senha — não é criptografia, apenas evita exposição acidental
+fn obfuscate(value: &str) -> String {
+    let encoded: String = value
+        .bytes()
+        .map(|b| format!("{:02X}", b ^ 0xAB))
+        .collect();
+    format!("obf:{}", encoded)
+}
+
+// structs de export com senhas ofuscadas — separadas para não afetar o Project original
+#[derive(Serialize)]
+struct FtpSettingsExport {
+    pub ftp_host:     String,
+    pub ftp_port:     u16,
+    pub ftp_user:     String,
+    pub ftp_password: String,
+}
+
+#[derive(Serialize)]
+struct DatabaseSettingsExport {
+    pub host:     String,
+    pub port:     u16,
+    pub user:     String,
+    pub password: String,
+    pub database: String,
+}
+
+#[derive(Serialize)]
+struct ProjectExport {
+    pub name:              String,
+    pub publish_folder:    String,
+    pub project_file:      String,
+    pub ftp_settings:      FtpSettingsExport,
+    pub database_settings: DatabaseSettingsExport,
+    pub sql_script:        String,
 }

@@ -36,9 +36,7 @@ pub fn ask_with_default(question: &str, default: &str) -> Option<String> {
     }
 }
 
-pub fn ask_validated<F>(question: &str, validator: F) -> Option<String>
-where
-    F: Fn(&str) -> Result<(), String>,
+pub fn ask_validated<F>(question: &str, validator: F) -> Option<String> where F: Fn(&str) -> Result<(), String>,
 {
     loop {
         match ask(question) {

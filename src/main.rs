@@ -7,6 +7,7 @@ mod projects;
 mod input;
 mod logger;
 mod deployer;
+mod crypto;
 
 fn main() {
     ui::print_banner();

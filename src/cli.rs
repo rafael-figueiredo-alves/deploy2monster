@@ -5,6 +5,7 @@ pub enum Command {
     Version,
     Help,
     Edit(String),
+    Export(String, String),  // ← nome do projeto, caminho de destino
     List,
     Unknown(String),
     None,
@@ -35,6 +36,13 @@ fn parse_command(args: &[String]) -> Command {
                 None => Command::Unknown("-dbUpdate requer o nome do projeto a ser atualizado".to_string()),
             }
         }  
+        Some("-export") => {
+            match (args.get(2), args.get(3)) {
+                (Some(name), Some(path)) => Command::Export(name.to_string(), path.to_string()),
+                (Some(_), None) => Command::Unknown("-export requer nome do projeto e caminho de destino. Ex: -export MeuProjeto C:\\Backup".to_string()),
+                _ => Command::Unknown("-export requer nome do projeto e caminho de destino.".to_string()),
+            }  
+        },      
         Some("-list")     => Command::List,  
         Some("-version")  => Command::Version,    
         Some("-help")     => Command::Help,

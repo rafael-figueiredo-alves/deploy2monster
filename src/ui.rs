@@ -46,6 +46,7 @@ fn print_help() {
     println!("  -dbUpdate <nome_do_projeto>   Executa a atualização do banco de dados");
     println!("  -list                         Lista os projetos disponíveis");
     println!("  -edit <nome_do_projeto>       Edita um projeto existente");
+    println!("  -export <nome> <caminho>      Exporta um projeto para o caminho informado");    
     println!("  -version                      Obtenha a versão atual do sistema");
     println!("  -help                         Exibe esta mensagem");
 }
@@ -58,13 +59,13 @@ fn print_version() {
 pub fn print_command_result(command: &Command, config: &config::AppConfig) {
     match command {
         Command::New(name) => {            
-            if let Err(e) = projects::create_project_interactive(name) {
+            if let Err(e) = projects::create_project_interactive(name, &config.key()) {
                 write_error(&format!("Erro: {}", e));
                 std::process::exit(1);                
             }
         },
         Command::Deploy(name) => {
-            match projects::load_project(name) {
+            match projects::load_project(name, &config.key()) {
                 Err(e) => {
                     write_error(&format!("Erro: {}", e));
                     std::process::exit(1);
@@ -76,7 +77,7 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
             }
         },
         Command::DbUpdate(name) => {
-            match projects::load_project(name) {
+            match projects::load_project(name, &config.key()) {
                 Err(e) => {
                     write_error(&format!("Erro: {}", e));
                     std::process::exit(1);
@@ -89,7 +90,16 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
                     }
                 }
             }
-        },  
+        }, 
+        Command::Export(name, dest_path) => {
+            match projects::export_project(name, dest_path, &config.key()) {
+                Ok(_)  => write_success(&format!("Projeto '{}' exportado com sucesso!", name)),
+                Err(e) => {
+                    write_error(&e);
+                    std::process::exit(1);
+                }
+            }
+        },         
         Command::List => {
             match projects::list_projects() {
                 Err(e) => {
@@ -113,7 +123,7 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
         Command::Version => print_version(),     
         Command::Help => print_help(),
         Command::Edit(name) => {
-                if let Err(e) = projects::edit_project_interactive(name) {
+                if let Err(e) = projects::edit_project_interactive(name, &config.key()) {
                     write_error(&e);
                     std::process::exit(1);
                 }
