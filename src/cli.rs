@@ -1,12 +1,13 @@
 pub enum Command {
     New(String),
+    Edit(String),
+    List,
+    Export(String, String),  // ← nome do projeto, caminho de destino
+    Import(String),        // ← caminho do arquivo a ser importado
     Deploy(String),
     DbUpdate(String),
     Version,
-    Help,
-    Edit(String),
-    Export(String, String),  // ← nome do projeto, caminho de destino
-    List,
+    Help,        
     Unknown(String),
     None,
 }
