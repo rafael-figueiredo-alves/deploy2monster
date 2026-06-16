@@ -9,6 +9,7 @@ mod input;
 mod logger;
 mod deployer;
 mod crypto;
+mod logs;
 
 // Ponto de entrada do aplicativo
 fn main() {

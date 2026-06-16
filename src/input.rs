@@ -150,6 +150,22 @@ pub fn ask_password(question: &str) -> Option<String> {
     }
 }
 
+pub fn ask_confirm(question: &str) -> bool {
+    loop {
+        print!("  {} (s/n): ", question);
+        io::stdout().flush().unwrap();
+
+        match read_line_or_esc() {
+            None => return false, // ESC = não
+            Some(input) => match input.trim().to_lowercase().as_str() {
+                "s" | "sim" => return true,
+                "n" | "não" | "nao" => return false,
+                _ => crate::ui::write_error("Digite 's' para sim ou 'n' para não."),
+            },
+        }
+    }
+}
+
 // lê caractere a caractere — retorna None se ESC for pressionado
 fn read_line_or_esc() -> Option<String> {
     let mut buffer = String::new();

@@ -539,6 +539,144 @@ pub fn export_project(name: &str, dest_path: &str, key: &[u8; 32]) -> Result<(),
     Ok(())
 }
 
+pub fn import_project(file_path: &str, key: &[u8; 32]) -> Result<(), String> {
+    let path = std::path::Path::new(file_path);
+
+    // valida existência e extensão
+    if !path.exists() {
+        return Err(format!("Arquivo não encontrado: {}", file_path));
+    }
+
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("d2mproj") => {}
+        _ => return Err("O arquivo deve ter extensão .d2mproj".to_string()),
+    }
+
+    // lê e desserializa como ProjectExport (formato ofuscado)
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Erro ao ler arquivo: {}", e))?;
+
+    let exported: ProjectExport = serde_json::from_str(&content)
+        .map_err(|e| format!("Erro ao interpretar arquivo de projeto: {}", e))?;
+
+    // verifica se já existe projeto com mesmo nome
+    let dest_path = resolve_project_path(&exported.name)?;
+    if dest_path.exists() {
+        return Err(format!(
+            "Já existe um projeto com o nome '{}'. Remova-o antes de importar.",
+            exported.name
+        ));
+    }
+
+    // desofusca as senhas
+    let ftp_password_plain = deobfuscate(&exported.ftp_settings.ftp_password)?;
+    let db_password_plain  = deobfuscate(&exported.database_settings.password)?;
+
+    // monta projeto com senhas descriptografadas para re-criptografar
+    let project = Project {
+        name:           exported.name.clone(),
+        publish_folder: exported.publish_folder.clone(),
+        project_file:   exported.project_file.clone(),
+        sql_script:     exported.sql_script.clone(),
+        ftp_settings: FtpSettings {
+            ftp_host:     exported.ftp_settings.ftp_host.clone(),
+            ftp_port:     exported.ftp_settings.ftp_port,
+            ftp_user:     exported.ftp_settings.ftp_user.clone(),
+            ftp_password: ftp_password_plain,
+        },
+        database_settings: DatabaseSettings {
+            host:     exported.database_settings.host.clone(),
+            port:     exported.database_settings.port,
+            user:     exported.database_settings.user.clone(),
+            password: db_password_plain,
+            database: exported.database_settings.database.clone(),
+        },
+    };
+
+    // salva já com a criptografia local
+    save_project(&project, &dest_path, key)?;
+
+    Ok(())
+}
+
+pub fn delete_project(name: &str) -> Result<(), String> {
+    let path = resolve_project_path(name)
+        .or_else(|_| find_project_path_case_insensitive(name))?;
+
+    if !path.exists() {
+        return Err(format!("Projeto '{}' não encontrado.", name));
+    }
+
+    std::fs::remove_file(&path)
+        .map_err(|e| format!("Erro ao remover arquivo: {}", e))?;
+
+    Ok(())
+}
+
+fn find_project_path_case_insensitive(name: &str) -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Erro ao obter executável: {}", e))?;
+
+    let projects_dir = exe_path
+        .parent()
+        .ok_or("Erro ao obter pasta do executável")?
+        .join("projects");
+
+    let name_lower = name.to_lowercase();
+
+    let entries = std::fs::read_dir(&projects_dir)
+        .map_err(|_| "Pasta 'projects' não encontrada.".to_string())?;
+
+    for entry in entries.flatten() {
+        let fname = entry.file_name().to_string_lossy().to_lowercase();
+        let expected = format!("{}.d2mproj", name_lower);
+        if fname == expected {
+            return Ok(entry.path());
+        }
+    }
+
+    Err(format!("Projeto '{}' não encontrado.", name))
+}
+
+pub fn find_project_name(name: &str) -> Result<String, String> {
+    let path = resolve_project_path(name);
+
+    if let Ok(p) = path {
+        if p.exists() {
+            return Ok(name.to_string());
+        }
+    }
+
+    // busca case-insensitive e retorna o nome real do arquivo
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Erro ao obter executável: {}", e))?;
+
+    let projects_dir = exe_path
+        .parent()
+        .ok_or("Erro ao obter pasta do executável")?
+        .join("projects");
+
+    let name_lower = name.to_lowercase();
+
+    let entries = std::fs::read_dir(&projects_dir)
+        .map_err(|_| "Pasta 'projects' não encontrada.".to_string())?;
+
+    for entry in entries.flatten() {
+        let fname = entry.file_name().to_string_lossy().to_lowercase();
+        let expected = format!("{}.d2mproj", name_lower);
+        if fname == expected {
+            let real_name = entry
+                .file_name()
+                .to_string_lossy()
+                .trim_end_matches(".d2mproj")
+                .to_string();
+            return Ok(real_name);
+        }
+    }
+
+    Err(format!("Projeto '{}' não encontrado.", name))
+}
+
 // ofusca senha — não é criptografia, apenas evita exposição acidental
 fn obfuscate(value: &str) -> String {
     let encoded: String = value
@@ -548,8 +686,27 @@ fn obfuscate(value: &str) -> String {
     format!("obf:{}", encoded)
 }
 
+fn deobfuscate(value: &str) -> Result<String, String> {
+    let hex_part = value
+        .strip_prefix("obf:")
+        .ok_or("Valor não está no formato ofuscado esperado.")?;
+
+    let bytes: Result<Vec<u8>, _> = (0..hex_part.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&hex_part[i..i + 2], 16)
+                .map(|b| b ^ 0xAB)
+        })
+        .collect();
+
+    let bytes = bytes.map_err(|_| "Erro ao decodificar valor ofuscado.".to_string())?;
+
+    String::from_utf8(bytes)
+        .map_err(|_| "Erro ao converter bytes deofuscados.".to_string())
+}
+
 // structs de export com senhas ofuscadas — separadas para não afetar o Project original
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct FtpSettingsExport {
     pub ftp_host:     String,
     pub ftp_port:     u16,
@@ -557,7 +714,7 @@ struct FtpSettingsExport {
     pub ftp_password: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct DatabaseSettingsExport {
     pub host:     String,
     pub port:     u16,
@@ -566,7 +723,7 @@ struct DatabaseSettingsExport {
     pub database: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct ProjectExport {
     pub name:              String,
     pub publish_folder:    String,
