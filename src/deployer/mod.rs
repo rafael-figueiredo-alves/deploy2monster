@@ -7,6 +7,7 @@ pub mod validator;
 use crate::logger;
 use crate::projects::Project;
 use crate::ui as ui;
+use std::time::Instant;
 
 pub fn run(project: &Project, skip_sql: bool) {
     // validação antes de começar
@@ -30,6 +31,8 @@ pub fn run(project: &Project, skip_sql: bool) {
         ui::write_info("Use -edit <nome> para corrigir as configurações do projeto.");
         std::process::exit(1);
     }
+
+    let started_at = Instant::now(); // ← início
 
     logger::info(&format!("Iniciando deploy do projeto '{}'", project.name));
     println!();
@@ -60,6 +63,22 @@ pub fn run(project: &Project, skip_sql: bool) {
         }
     }
     println!();
+
+    let elapsed = started_at.elapsed();
+    let mins    = elapsed.as_secs() / 60;
+    let secs    = elapsed.as_secs() % 60;
+
+    if mins > 0 {
+        ui::write_success(&format!(
+            "Deploy do projeto '{}' concluído com sucesso em {}m {}s!",
+            project.name, mins, secs
+        ));
+    } else {
+        ui::write_success(&format!(
+            "Deploy do projeto '{}' concluído com sucesso em {}s!",
+            project.name, secs
+        ));
+    }
 
     logger::info("Deploy concluído com sucesso!");
 

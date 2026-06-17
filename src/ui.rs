@@ -47,14 +47,14 @@ fn print_help() {
     println!("  -new <nome_do_projeto>                      Cria um novo projeto (.d2mproj)");
     println!("  -edit <nome_do_projeto>                     Edita um projeto existente");
     println!("  -list                                       Lista os projetos cadastrados");
-    println!("  -export <nome_do_projeto> <caminho>          Exporta um projeto para o destino informado");
-    println!("  -import <caminho_arquivo.d2mproj>            Importa um projeto exportado");
+    println!("  -export <nome_do_projeto> <caminho>         Exporta um projeto para o destino informado");
+    println!("  -import <caminho_arquivo.d2mproj>           Importa um projeto exportado");
     println!("  -delete <nome_do_projeto>                   Remove um projeto cadastrado");
     println!();
     println!("  -deploy <nome_do_projeto> [--skip-sql]      Executa o deploy completo");
     println!("  -dbUpdate <nome_do_projeto>                 Executa apenas o banco de dados");
     println!("  -test <nome_do_projeto>                     Testa conexões FTP e banco de dados");
-    println!("  -logs <nome_do_projeto>                     Lista e abre logs de deploy");
+    println!("  -logs <nome> [--clean <dias>]               Lista logs ou limpa logs antigos");
     println!();
     println!("  -version                                    Exibe a versão atual do sistema");
     println!("  -help                                       Exibe esta mensagem");
@@ -200,71 +200,89 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
                 }
             }
         },  
-        Command::Logs(name) => {
-            match logs::list_logs(name) {
-                Err(e) => {
-                    write_error(&e);
-                    std::process::exit(1);
-                }
-                Ok(entries) if entries.is_empty() => {
+        Command::Logs(name, clean_days) => {
+            // modo limpeza
+                if let Some(days) = clean_days {
                     println!();
-                    println!("  Nenhum log encontrado para o projeto '{}'.", name);
-                    println!("  Execute -deploy para gerar logs.");
-                    println!();
-                }
-                Ok(entries) => {
-                    println!();
-                    println!("  Logs do projeto '{}' ({} encontrado(s)):", name, entries.len());
-                    println!();
+                    write_warning(&format!(
+                        "Removendo logs do projeto '{}' com mais de {} dia(s)...",
+                        name, days
+                    ));
 
-                    for (i, entry) in entries.iter().enumerate() {
-                        println!(
-                            "  {:>3}. {}   {:>4} KB",
-                            i + 1,
-                            entry.created_at,
-                            entry.size_kb.max(1)
-                        );
+                    match logs::delete_old_logs(name, *days) {
+                        Ok(0) => write_info("Nenhum log removido."),
+                        Ok(n) => write_success(&format!("{} log(s) removido(s).", n)),
+                        Err(e) => write_error(&e),
                     }
-
                     println!();
-                    println!("  Digite o número para visualizar, ou pressione ESC para sair.");
-                    println!();
+                    return;
+                }
 
-                    loop {
-                        match input::ask("Número do log") {
-                            None => break, // ESC
-                            Some(input) => {
-                                match input.trim().parse::<usize>() {
-                                    Ok(n) if n >= 1 && n <= entries.len() => {
-                                        let entry = &entries[n - 1];
-                                        match logs::open_log(&entry.path) {
-                                            Ok(content) => {
-                                                println!();
-                                                println!("  {}", "─".repeat(60));
-                                                println!("  Log: {}", entry.filename);
-                                                println!("  {}", "─".repeat(60));
-                                                println!();
-                                                for line in content.lines() {
-                                                    println!("  {}", line);
+                // modo listagem — igual ao anterior
+                match logs::list_logs(name) {
+                    Err(e) => {
+                        write_error(&e);
+                        std::process::exit(1);
+                    }
+                    Ok(entries) if entries.is_empty() => {
+                        println!();
+                        println!("  Nenhum log encontrado para o projeto '{}'.", name);
+                        println!("  Execute -deploy para gerar logs.");
+                        println!();
+                    }
+                    Ok(entries) => {
+                        println!();
+                        println!("  Logs do projeto '{}' ({} encontrado(s)):", name, entries.len());
+                        println!();
+
+                        for (i, entry) in entries.iter().enumerate() {
+                            println!(
+                                "  {:>3}. {}   {:>4} KB",
+                                i + 1,
+                                entry.created_at,
+                                entry.size_kb.max(1)
+                            );
+                        }
+
+                        println!();
+                        println!("  Digite o número para visualizar, ou pressione ESC para sair.");
+                        println!();
+
+                        loop {
+                            match input::ask("Número do log") {
+                                None => break,
+                                Some(input) => {
+                                    match input.trim().parse::<usize>() {
+                                        Ok(n) if n >= 1 && n <= entries.len() => {
+                                            let entry = &entries[n - 1];
+                                            match logs::open_log(&entry.path) {
+                                                Ok(content) => {
+                                                    println!();
+                                                    println!("  {}", "─".repeat(60));
+                                                    println!("  Log: {}", entry.filename);
+                                                    println!("  {}", "─".repeat(60));
+                                                    println!();
+                                                    for line in content.lines() {
+                                                        println!("  {}", line);
+                                                    }
+                                                    println!();
+                                                    println!("  {}", "─".repeat(60));
+                                                    println!();
                                                 }
-                                                println!();
-                                                println!("  {}", "─".repeat(60));
-                                                println!();
+                                                Err(e) => write_error(&e),
                                             }
-                                            Err(e) => write_error(&e),
                                         }
+                                        _ => write_error(&format!(
+                                            "Digite um número entre 1 e {}.",
+                                            entries.len()
+                                        )),
                                     }
-                                    _ => write_error(&format!(
-                                        "Digite um número entre 1 e {}.",
-                                        entries.len()
-                                    )),
                                 }
                             }
                         }
                     }
                 }
-            }
-        },      
+        },     
         Command::Version => print_version(),     
         Command::Help => print_help(),
         Command::Edit(name) => {

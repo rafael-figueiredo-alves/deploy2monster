@@ -1,4 +1,3 @@
-
 // Importa os módulos necessários para o aplicativo
 mod ui;
 mod cli;

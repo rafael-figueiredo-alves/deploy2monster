@@ -8,7 +8,7 @@ pub enum Command {
     DbUpdate(String),
     Delete(String),
     Test(String),
-    Logs(String),
+    Logs(String, Option<u64>),
     Version,
     Help,        
     Unknown(String),
@@ -79,10 +79,20 @@ fn parse_command(args: &[String]) -> Command {
         },
         Some("-logs") => {
             match args.get(2) {
-                Some(name) => Command::Logs(name.to_string()),
+                Some(name) => {
+                    // detecta --clean <dias>
+                    let clean_days = if args.get(3).map(|s| s.as_str()) == Some("--clean") {
+                        args.get(4)
+                            .and_then(|s| s.parse::<u64>().ok())
+                            .or(Some(30)) // padrão 30 dias se --clean sem valor
+                    } else {
+                        None
+                    };
+                    Command::Logs(name.to_string(), clean_days)
+                }
                 None => Command::Unknown("-logs requer o nome do projeto".to_string()),
             }
-        },    
+        }   
         Some(other) => Command::Unknown(other.to_string()),
         None              => Command::None,
     }
