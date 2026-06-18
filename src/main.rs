@@ -1,13 +1,9 @@
 // Importa os módulos necessários para o aplicativo
 mod ui;
-mod cli;
-mod config;
-mod consts;
 mod projects;
 mod input;
 mod logger;
 mod deployer;
-mod crypto;
 mod logs;
 
 // Ponto de entrada do aplicativo

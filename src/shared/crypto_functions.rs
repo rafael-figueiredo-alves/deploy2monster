@@ -4,7 +4,7 @@ use aes_gcm::{
 };
 use aes_gcm::aead::rand_core::RngCore;
 
-const NONCE_SIZE: usize = 12; // AES-GCM padrão
+use crate::shared::consts::{NONCE_SIZE};
 
 pub fn encrypt(value: &str, key: &[u8; 32]) -> Result<String, String> {
     let cipher = Aes256Gcm::new(key.into());

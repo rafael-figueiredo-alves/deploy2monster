@@ -1,0 +1,16 @@
+pub enum Command {
+    New(String),
+    Edit(String),
+    Delete(String),
+    Export(String, String), 
+    Import(String),        
+    List,
+    Deploy(String, bool),
+    DbUpdate(String),    
+    Test(String),
+    Logs(String, Option<u64>),
+    Version,
+    Help,        
+    Unknown(String),
+    None,
+}

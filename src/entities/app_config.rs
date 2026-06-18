@@ -1,8 +1,4 @@
-use std::path::PathBuf;
-use std::fs;
-
-const CONFIG_FILENAME: &str = "deploy2monster.cfg";
-const KEY_SIZE: usize = 32; // AES-256 = 32 bytes
+use crate::shared::consts::{CONFIG_FILENAME, KEY_SIZE};
 
 pub struct AppConfig {
     pub crypto_key: [u8; KEY_SIZE],
