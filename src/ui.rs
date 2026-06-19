@@ -1,71 +1,18 @@
 use crate::cli::Command;
 use crate::config;
-use crate::deployer::tester;
+use crate::business_layer::tester;
 use crate::input;
 use crate::logs;
-use chrono::Local;
-use chrono::Datelike;
 use crate::consts::{APP_NAME,APP_VERSION};
-use crate::{deployer, logger, projects};
+use crate::{business_layer, logger, projects};
 
-fn current_year() -> i32 {
-    Local::now().year()
-}
 
-pub fn write_error(msg: &str) {
-    eprintln!("\x1b[31m  ✘ {}\x1b[0m", msg); //Mensagem em vermelho
-}
 
-pub fn write_success(msg: &str) {
-    println!("\x1b[32m  ✔ {}\x1b[0m", msg); //Mensagem em verde
-}
 
-pub fn write_warning(msg: &str) {
-    println!("\x1b[33m  ⚠ {}\x1b[0m", msg); //Mensagem em amarelo
-}
 
-pub fn write_info(msg: &str) {
-    println!("  → {}", msg); //Não usa cor diferente do padrão do console
-}
 
-pub fn print_banner() {
-    let separator = "=".repeat(60);
-    println!();
-    println!();
-    println!("   /\\_/\\       {:<28}       ", APP_NAME);
-    println!("  ( o,o )      v{:<27}       ", APP_VERSION);
-    println!("  /)   (\\      {:<28}", format!("© {} - Rafael de Figueiredo Alves", current_year()));
-    println!("  \\/\\_/\\/                                         ");
-    println!("{}", separator);
-    println!();
-}
 
-fn print_help() {
-    println!("Uso: deploy2monster <comando>");
-    println!();
-    println!("Comandos disponíveis:");
-    println!("  -new <nome_do_projeto>                      Cria um novo projeto (.d2mproj)");
-    println!("  -edit <nome_do_projeto>                     Edita um projeto existente");
-    println!("  -list                                       Lista os projetos cadastrados");
-    println!("  -export <nome_do_projeto> <caminho>         Exporta um projeto para o destino informado");
-    println!("  -import <caminho_arquivo.d2mproj>           Importa um projeto exportado");
-    println!("  -delete <nome_do_projeto>                   Remove um projeto cadastrado");
-    println!();
-    println!("  -deploy <nome_do_projeto> [--skip-sql]      Executa o deploy completo");
-    println!("  -dbUpdate <nome_do_projeto>                 Executa apenas o banco de dados");
-    println!("  -test <nome_do_projeto>                     Testa conexões FTP e banco de dados");
-    println!("  -logs <nome> [--clean <dias>]               Lista logs ou limpa logs antigos");
-    println!();
-    println!("  -version                                    Exibe a versão atual do sistema");
-    println!("  -help                                       Exibe esta mensagem");
-    println!();
-    println!("Dica: pressione ESC nos prompts interativos para cancelar a operação.");
-}
 
-fn print_version() {
-    println!("");
-    println!("Versão do Deploy2Monster: {:<27}", APP_VERSION)
-}
 
 pub fn print_command_result(command: &Command, config: &config::AppConfig) {
     match command {
@@ -97,7 +44,7 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
 
                     println!();
                     logger::init(&proj.name);
-                    deployer::run(&proj, *skip_sql);
+                    business_layer::run(&proj, *skip_sql);
                 }
             }
         },
@@ -109,7 +56,7 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
                 }
                 Ok(proj) => {
                     logger::init(&proj.name);
-                    if let Err(e) = deployer::database::run(&proj){
+                    if let Err(e) = business_layer::database::run(&proj){
                         write_error(&format!("Erro: {}", e));
                         std::process::exit(1);                        
                     }
@@ -285,12 +232,6 @@ pub fn print_command_result(command: &Command, config: &config::AppConfig) {
         },     
         Command::Version => print_version(),     
         Command::Help => print_help(),
-        Command::Edit(name) => {
-            if let Err(e) = projects::edit_project_interactive(name, config.key()) {
-                write_error(&e);
-                std::process::exit(1);
-            }
-        }
         Command::Unknown(cmd) => {
             write_error(&format!("Comando desconhecido: '{}'", cmd));
             write_info("Use -help para ver os comandos disponíveis.");

@@ -1,18 +1,16 @@
 // Importa os módulos necessários para o aplicativo
-mod ui;
-mod projects;
-mod input;
-mod logger;
-mod deployer;
-mod logs;
+mod app;
+mod business_layer;
+mod entities;
+mod shared;
 
 // Ponto de entrada do aplicativo
 fn main() {
     // Imprime o banner com informações do aplicativo e icone
-    ui::print_banner();
+    print_banner();
 
     // Cria ou carrega as configurações do aplicativo com a chave de criptografia
-    let app_config = match config::AppConfig::load_or_create() {
+    let app_config = match entities::AppConfig::load_or_create() {
         Ok(cfg) => cfg,
         Err(e)  => {
             ui::write_error(&format!("Erro ao carregar configurações: {}", e));
@@ -24,5 +22,5 @@ fn main() {
     let command = cli::parse_args();
 
     // Executa o comando e captura o resultado
-    ui::print_command_result(&command, &app_config);
+    app::Run(&command, &app_config);
 }

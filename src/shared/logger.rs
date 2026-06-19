@@ -2,12 +2,13 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use chrono::Local;
 
-use crate::ui::{write_error, write_info, write_warning};
+use crate::message_functions::*;
+use crate::date_functions::*;
 
 static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 
+// region: Logger simples para registrar mensagens em um arquivo de log
 pub fn init(project_name: &str) {
     let exe_path = std::env::current_exe().unwrap();
     let logs_dir = exe_path.parent().unwrap().join("logs");
@@ -35,7 +36,9 @@ pub fn error(msg: &str) {
 pub fn log_path() -> Option<&'static PathBuf> {
     LOG_PATH.get()
 }
+// endregion
 
+// Função interna para formatar e registrar mensagens
 fn log(level: &str, msg: &str) {
     let timestamp = chrono_now_str();
     let line = format!("[{}] [{}] {}", timestamp, level, msg);
@@ -53,8 +56,4 @@ fn log(level: &str, msg: &str) {
             writeln!(file, "{}", line).ok();
         }
     }
-}
-
-fn chrono_now_str() -> String {
-    Local::now().format("%Y%m%d_%H%M%S").to_string()
 }

@@ -2,6 +2,10 @@
 pub mod parse_functions;
 pub mod message_functions;
 pub mod consts;
+pub mod input_functions;
+pub mod date_functions;
+pub mod logger; // módulo de logging para registrar mensagens em um arquivo
+pub mod output_functions; // módulo para funções de saída (exibição) no terminal
 
 // ==================== REEXPORTS (o mais importante) ====================
 
@@ -28,6 +32,19 @@ pub use consts::{
     // etc...
 };
 
-// Ou exporta tudo de uma vez (se preferir):
-// pub use parse_functions::*;
-// pub use print_functions::*;
+// exporta todas as funções de input de uma vez
+pub use input_functions::*;
+
+pub use date_functions::{
+    current_year,
+    chrono_now_str,
+};
+
+pub use logger::*;
+
+pub use output_functions::{
+    print_banner,    
+    print_help,
+    print_version,
+    // etc...
+};

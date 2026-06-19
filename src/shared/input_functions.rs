@@ -4,6 +4,7 @@ use crossterm::{
 };
 use std::io::{self, Write};
 
+// region: Funções de entrada do usuário
 pub fn ask(question: &str) -> Option<String> {
     ask_with_default(question, "")
 }
@@ -36,7 +37,8 @@ pub fn ask_with_default(question: &str, default: &str) -> Option<String> {
     }
 }
 
-pub fn ask_validated<F>(question: &str, validator: F) -> Option<String> where F: Fn(&str) -> Result<(), String>,
+pub fn ask_validated<F>(question: &str, validator: F) -> Option<String> 
+where F: Fn(&str) -> Result<(), String>,
 {
     loop {
         match ask(question) {
@@ -165,6 +167,9 @@ pub fn ask_confirm(question: &str) -> bool {
         }
     }
 }
+// endregion
+
+// region: Função de leitura de linha com suporte a ESC
 
 // lê caractere a caractere — retorna None se ESC for pressionado
 fn read_line_or_esc() -> Option<String> {
@@ -222,3 +227,5 @@ fn read_line_or_esc() -> Option<String> {
     println!();
     result
 }
+
+// endregion
