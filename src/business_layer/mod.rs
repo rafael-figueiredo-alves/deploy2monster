@@ -3,13 +3,15 @@ pub mod ftp;
 pub mod publisher;
 pub mod tester;
 pub mod validator;
+pub mod logs;
+pub mod project_bll;
 
 use crate::logger;
 use crate::projects::Project;
 use crate::ui as ui;
 use std::time::Instant;
 
-pub fn run(project: &Project, skip_sql: bool) {
+pub fn run_deploy(project: &Project, skip_sql: bool) {
     // validação antes de começar
     let validation = validator::validate(project);
 

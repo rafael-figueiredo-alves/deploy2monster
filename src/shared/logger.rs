@@ -3,8 +3,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use crate::message_functions::*;
-use crate::date_functions::*;
+use crate::shared::message_functions::*;
+use crate::shared::date_functions::*;
 
 static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 

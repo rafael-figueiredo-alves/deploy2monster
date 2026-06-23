@@ -4,6 +4,8 @@ use crossterm::{
 };
 use std::io::{self, Write};
 
+use crate::shared::message_functions;
+
 // region: Funções de entrada do usuário
 pub fn ask(question: &str) -> Option<String> {
     ask_with_default(question, "")
@@ -31,7 +33,7 @@ pub fn ask_with_default(question: &str, default: &str) -> Option<String> {
                     return Some(trimmed);
                 }
 
-                crate::ui::write_error("Este campo é obrigatório.");
+                message_functions::write_error("Este campo é obrigatório.");
             }
         }
     }
@@ -45,7 +47,7 @@ where F: Fn(&str) -> Result<(), String>,
             None => return None, // ESC propagado
             Some(value) => match validator(&value) {
                 Ok(_)    => return Some(value),
-                Err(msg) => crate::ui::write_error(&msg),
+                Err(msg) => message_functions::write_error(&msg),
             },
         }
     }
@@ -64,7 +66,7 @@ where
             None => return None,
             Some(value) => match validator(&value) {
                 Ok(_)    => return Some(value),
-                Err(msg) => crate::ui::write_error(&msg),
+                Err(msg) => message_functions::write_error(&msg),
             },
         }
     }
@@ -76,7 +78,7 @@ pub fn ask_u16_with_default(question: &str, default: u16) -> Option<u16> {
             None => return None,
             Some(input) => match input.parse::<u16>() {
                 Ok(v)  => return Some(v),
-                Err(_) => crate::ui::write_error("Digite um número válido entre 1 e 65535."),
+                Err(_) => message_functions::write_error("Digite um número válido entre 1 e 65535."),
             },
         }
     }
@@ -114,7 +116,7 @@ pub fn ask_password_optional(question: &str, current: &str) -> Option<String> {
             }
         }
         Err(_) => {
-            crate::ui::write_error("Erro ao ler senha.");
+            message_functions::write_error("Erro ao ler senha.");
             None
         }
     }
@@ -136,7 +138,7 @@ pub fn ask_u16(question: &str, default: u16) -> Option<u16> {
             None => return None,
             Some(input) => match input.parse::<u16>() {
                 Ok(v)  => return Some(v),
-                Err(_) => crate::ui::write_error("Digite um número válido entre 1 e 65535."),
+                Err(_) => message_functions::write_error("Digite um número válido entre 1 e 65535."),
             },
         }
     }
@@ -146,8 +148,8 @@ pub fn ask_password(question: &str) -> Option<String> {
     loop {
         match rpassword::prompt_password(format!("  {}: ", question)) {
             Ok(pwd) if !pwd.trim().is_empty() => return Some(pwd.trim().to_string()),
-            Ok(_)  => crate::ui::write_error("Senha é obrigatória."),
-            Err(_) => crate::ui::write_error("Erro ao ler senha. Tente novamente."),
+            Ok(_)  => message_functions::write_error("Senha é obrigatória."),
+            Err(_) => message_functions::write_error("Erro ao ler senha. Tente novamente."),
         }
     }
 }
@@ -162,7 +164,7 @@ pub fn ask_confirm(question: &str) -> bool {
             Some(input) => match input.trim().to_lowercase().as_str() {
                 "s" | "sim" => return true,
                 "n" | "não" | "nao" => return false,
-                _ => crate::ui::write_error("Digite 's' para sim ou 'n' para não."),
+                _ => message_functions::write_error("Digite 's' para sim ou 'n' para não."),
             },
         }
     }

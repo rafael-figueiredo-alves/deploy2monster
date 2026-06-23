@@ -1,36 +1,6 @@
-use std::fs;
+use crate::entities::Project;
+use crate::shared::{resolve_project_path};
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
-use crate::crypto;
-
-use crate::{input};
-
-#[derive(Serialize, Deserialize)]
-pub struct DatabaseSettings {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub password: String,
-    pub database: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct FtpSettings {
-    pub ftp_host: String,
-    pub ftp_port: u16,
-    pub ftp_user: String,
-    pub ftp_password: String,    
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Project {
-    pub name: String,
-    pub publish_folder: String,
-    pub project_file:   String,
-    pub ftp_settings: FtpSettings,
-    pub database_settings: DatabaseSettings,
-    pub sql_script: String,
-}
 
 pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String> {
     let project_path = resolve_project_path(name)?;
@@ -163,6 +133,7 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
     Ok(())
 }
 
+
 fn save_project(project: &Project, path: &PathBuf, key: &[u8; 32]) -> Result<(), String> {
     // cria uma versão com senhas criptografadas para gravar
     let to_save = Project {
@@ -196,17 +167,6 @@ fn save_project(project: &Project, path: &PathBuf, key: &[u8; 32]) -> Result<(),
 
     println!();
     Ok(())
-}
-
-fn resolve_project_path(name: &str) -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("Erro ao obter caminho do executável: {}", e))?;
-
-    let projects_dir = exe_path.parent()
-        .ok_or_else(|| "Não foi possível determinar o diretório do executável".to_string())?
-        .join("projects");
-
-    Ok(projects_dir.join(format!("{}.d2mproj", name)))
 }
 
 pub fn load_project(name: &str, key: &[u8; 32]) -> Result<Project, String> {
@@ -703,32 +663,4 @@ fn deobfuscate(value: &str) -> Result<String, String> {
 
     String::from_utf8(bytes)
         .map_err(|_| "Erro ao converter bytes deofuscados.".to_string())
-}
-
-// structs de export com senhas ofuscadas — separadas para não afetar o Project original
-#[derive(Serialize, Deserialize)]
-struct FtpSettingsExport {
-    pub ftp_host:     String,
-    pub ftp_port:     u16,
-    pub ftp_user:     String,
-    pub ftp_password: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct DatabaseSettingsExport {
-    pub host:     String,
-    pub port:     u16,
-    pub user:     String,
-    pub password: String,
-    pub database: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ProjectExport {
-    pub name:              String,
-    pub publish_folder:    String,
-    pub project_file:      String,
-    pub ftp_settings:      FtpSettingsExport,
-    pub database_settings: DatabaseSettingsExport,
-    pub sql_script:        String,
 }
