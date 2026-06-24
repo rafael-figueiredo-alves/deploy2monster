@@ -9,3 +9,4 @@ pub mod app_config;
 pub use project::Project;
 pub use command::Command;
 pub use app_config::AppConfig;
+pub use ftp_settings::FtpSettings;

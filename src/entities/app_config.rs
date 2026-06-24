@@ -1,3 +1,5 @@
+use std::{fs, path::PathBuf};
+
 use crate::shared::consts::{CONFIG_FILENAME, KEY_SIZE};
 
 pub struct AppConfig {
@@ -43,7 +45,7 @@ fn create_config(path: &PathBuf) -> Result<AppConfig, String> {
     fs::write(path, &data)
         .map_err(|e| format!("Erro ao criar arquivo de configuração: {}", e))?;
 
-    crate::ui::write_info(&format!(
+    crate::shared::message_functions::write_info(&format!(
         "Arquivo de configuração criado em: {}",
         path.display()
     ));

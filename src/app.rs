@@ -1,7 +1,7 @@
 use crate::business_layer::database;
 use crate::business_layer::logs;
 use crate::business_layer::project_bll::*;
-use crate::business_layer::run_deploy;
+use crate::business_layer::deploy::run_deploy;
 use crate::business_layer::tester;
 use crate::entities::{AppConfig, Command};
 use crate::shared::input_functions::*;
@@ -9,7 +9,7 @@ use crate::shared::logger;
 use crate::shared::message_functions::*;
 use crate::shared::output_functions::*;
 
-pub fn Run(command: Command, config: &AppConfig) {
+pub fn run(command: Command, config: &AppConfig) {
     match command {
         Command::New(name) => new_project(&name, config),
         Command::Edit(name) => edit_project(&name, config),

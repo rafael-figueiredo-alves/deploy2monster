@@ -22,5 +22,5 @@ fn main() {
     let command = shared::parse_functions::parse_args();
 
     // Executa o comando e captura o resultado
-    app::Run(command, &app_config);
+    app::run(command, &app_config);
 }

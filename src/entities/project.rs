@@ -1,7 +1,17 @@
 use serde::{Serialize, Deserialize};
 
-use crate::database_settings::{DatabaseSettings, DatabaseSettingsContext};
-use crate::ftp_settings::{FtpSettings, FtpSettingsContext};
+use super::database_settings::{
+    DatabaseSettings,
+    DatabaseSettingsBuilder,
+    DatabaseSettingsContext,
+    DatabaseSettingsParent,
+};
+use super::ftp_settings::{
+    FtpSettings,
+    FtpSettingsBuilder,
+    FtpSettingsContext,
+    FtpSettingsParent,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Project {
@@ -67,8 +77,20 @@ impl ProjectBuilder {
             project_file: self.project_file.ok_or("project_file é obrigatório")?,
             ftp_settings: self.ftp_settings.ok_or("ftp_settings é obrigatório")?,
             database_settings: self.database_settings.ok_or("database_settings é obrigatório")?,
-            sql_script: self.sql_script,
+            sql_script: self.sql_script.unwrap_or_default(),
         })
+    }
+}
+
+impl DatabaseSettingsParent for ProjectBuilder {
+    fn set_database_settings(&mut self, settings: DatabaseSettings) {
+        self.database_settings = Some(settings);
+    }
+}
+
+impl FtpSettingsParent for ProjectBuilder {
+    fn set_ftp_settings(&mut self, settings: FtpSettings) {
+        self.ftp_settings = Some(settings);
     }
 }
 

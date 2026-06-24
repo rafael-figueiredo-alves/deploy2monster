@@ -1,6 +1,6 @@
 use mysql::{Pool, prelude::Queryable, OptsBuilder};
-use crate::logger;
-use crate::projects::Project;
+use crate::shared::logger;
+use crate::entities::project::Project;
 use std::fs;
 
 pub fn run(project: &Project) -> Result<(), String> {

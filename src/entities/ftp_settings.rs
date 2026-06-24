@@ -59,12 +59,19 @@ impl FtpSettings {
 
 // region: CONTEXT para ser usado dentro do ProjectBuilder
 
+pub trait FtpSettingsParent {
+    fn set_ftp_settings(&mut self, settings: FtpSettings);
+}
+
 pub struct FtpSettingsContext<P> {
     parent: P,
     builder: FtpSettingsBuilder,
 }
 
-impl<P> FtpSettingsContext<P> {
+impl<P> FtpSettingsContext<P>
+where
+    P: FtpSettingsParent,
+{
     pub fn ftp_host(mut self, host: impl Into<String>) -> Self {
         self.builder = self.builder.ftp_host(host);
         self
@@ -88,7 +95,7 @@ impl<P> FtpSettingsContext<P> {
     pub fn end(self) -> P {
         let ftp = self.builder.build().expect("Failed to build FtpSettings");
         let mut parent = self.parent;
-        parent.ftp_settings = Some(ftp);
+        parent.set_ftp_settings(ftp);
         parent
     }
 }

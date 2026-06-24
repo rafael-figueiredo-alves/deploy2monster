@@ -1,4 +1,4 @@
-use crate::projects::Project;
+use crate::entities::project::Project;
 use std::path::Path;
 
 pub struct ValidationResult {

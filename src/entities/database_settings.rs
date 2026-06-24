@@ -67,12 +67,19 @@ impl DatabaseSettings {
 
 // region: Context para ser usado dentro do ProjectBuilder
 
+pub trait DatabaseSettingsParent {
+    fn set_database_settings(&mut self, settings: DatabaseSettings);
+}
+
 pub struct DatabaseSettingsContext<P> {
     parent: P,
     builder: DatabaseSettingsBuilder,
 }
 
-impl<P> DatabaseSettingsContext<P> {
+impl<P> DatabaseSettingsContext<P>
+where
+    P: DatabaseSettingsParent,
+{
     pub fn host(mut self, host: impl Into<String>) -> Self {
         self.builder = self.builder.host(host);
         self
@@ -101,7 +108,7 @@ impl<P> DatabaseSettingsContext<P> {
     pub fn end(self) -> P {
         let db = self.builder.build().expect("Falhou em construir DatabaseSettings");
         let mut parent = self.parent;
-        parent.database_settings = Some(db);
+        parent.set_database_settings(db);
         parent
     }
 }

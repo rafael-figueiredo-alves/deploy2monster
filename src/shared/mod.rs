@@ -7,6 +7,7 @@ pub mod date_functions;
 pub mod logger; // módulo de logging para registrar mensagens em um arquivo
 pub mod output_functions; // módulo para funções de saída (exibição) no terminal
 pub mod path_functions;
+pub mod crypto_functions;
 
 // ==================== REEXPORTS (o mais importante) ====================
 
@@ -51,3 +52,5 @@ pub use output_functions::{
 };
 
 pub use path_functions::*;
+
+pub use crypto_functions::*;

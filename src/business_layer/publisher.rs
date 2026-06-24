@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use crate::logger;
-use crate::projects::Project;
+use crate::shared::logger;
+use crate::entities::project::Project;
 
 pub fn run(project: &Project) -> Result<(), String> {
     let output_dir = build_output_dir(project)?;

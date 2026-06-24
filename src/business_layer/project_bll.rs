@@ -1,5 +1,8 @@
-use crate::entities::Project;
+use crate::entities::project::Project;
 use crate::shared::{resolve_project_path};
+use crate::shared::message_functions::*;
+use crate::shared::input_functions::*;
+use crate::shared::crypto_functions::*;
 use std::path::PathBuf;
 
 pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String> {
@@ -19,7 +22,7 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
             match $expr {
                 Some(v) => v,
                 None => {
-                    crate::ui::write_warning("Criação de projeto cancelada.");
+                    write_warning("Criação de projeto cancelada.");
                     return Ok(());
                 }
             }
@@ -33,7 +36,7 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
     println!();
 
     println!("  — Geral —");
-    let project_file = ask_or_cancel!(input::ask_validated(
+    let project_file = ask_or_cancel!(ask_validated(
         "Caminho do arquivo .csproj",
         |v| {
             if !std::path::Path::new(v).exists() {
@@ -46,7 +49,7 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
         },
     ));
 
-    let publish_folder = ask_or_cancel!(input::ask_validated(
+    let publish_folder = ask_or_cancel!(ask_validated(
         "Pasta de publicação",
         |v| {
             if !std::path::Path::new(v).exists() {
@@ -59,7 +62,7 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
 
     println!();
     println!("  — FTP —");
-    let ftp_host = ask_or_cancel!(input::ask_validated(
+    let ftp_host = ask_or_cancel!(ask_validated(
         "Host FTP",
         |v| {
             if v.is_empty() {
@@ -70,99 +73,101 @@ pub fn create_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), Stri
         },
     ));
 
-    let ftp_port     = ask_or_cancel!(input::ask_u16("Porta FTP", 21));
-    let ftp_user     = ask_or_cancel!(input::ask_validated("Usuário FTP", |v| {
+    let ftp_port     = ask_or_cancel!(ask_u16("Porta FTP", 21));
+    let ftp_user     = ask_or_cancel!(ask_validated("Usuário FTP", |v| {
         if v.is_empty() { Err("Usuário FTP é obrigatório.".to_string()) } else { Ok(()) }
     }));
-    let ftp_password = ask_or_cancel!(input::ask_password("Senha FTP"));
+    let ftp_password = ask_or_cancel!(ask_password("Senha FTP"));
 
     println!();
     println!("  — Banco de Dados —");
-    let db_host = ask_or_cancel!(input::ask_validated("Endereço do banco de dados", |v| {
+    let db_host = ask_or_cancel!(ask_validated("Endereço do banco de dados", |v| {
         if v.is_empty() { Err("Endereço do banco é obrigatório.".to_string()) } else { Ok(()) }
     }));
 
-    let db_port     = ask_or_cancel!(input::ask_u16("Porta do banco de dados", 3306));
-    let db_user     = ask_or_cancel!(input::ask_validated("Usuário do banco de dados", |v| {
+    let db_port     = ask_or_cancel!(ask_u16("Porta do banco de dados", 3306));
+    let db_user     = ask_or_cancel!(ask_validated("Usuário do banco de dados", |v| {
         if v.is_empty() { Err("Usuário do banco é obrigatório.".to_string()) } else { Ok(()) }
     }));
-    let db_password = ask_or_cancel!(input::ask_password("Senha do banco de dados"));
-    let db_database = ask_or_cancel!(input::ask_validated("Nome do banco de dados", |v| {
+    let db_password = ask_or_cancel!(ask_password("Senha do banco de dados"));
+    let db_database = ask_or_cancel!(ask_validated("Nome do banco de dados", |v| {
         if v.is_empty() { Err("Nome do banco é obrigatório.".to_string()) } else { Ok(()) }
     }));
 
     let sql_script = loop {
-        match input::ask_optional("Caminho do script SQL (.sql ou .txt)") {
+        match ask_optional("Caminho do script SQL (.sql ou .txt)") {
             None => {
-                crate::ui::write_warning("Criação de projeto cancelada.");
+                write_warning("Criação de projeto cancelada.");
                 return Ok(());
             }
             Some(path) if path.is_empty() => break path,
             Some(path) => match validate_sql_script(&path) {
                 Ok(_) => {
-                    crate::ui::write_success("Script SQL validado.");
+                    write_success("Script SQL validado.");
                     break path;
                 }
-                Err(msg) => crate::ui::write_error(&msg),
+                Err(msg) => write_error(&msg),
             },
         }
     };
 
-    let project = Project {
-        name: name.to_string(),
-        publish_folder,
-        project_file,
-        ftp_settings: FtpSettings {
-            ftp_host,
-            ftp_port,
-            ftp_user,
-            ftp_password,
-        },
-        database_settings: DatabaseSettings {
-            host:     db_host,
-            port:     db_port,
-            user:     db_user,
-            password: db_password,
-            database: db_database,
-        },
-        sql_script,
-    };
+    let project = Project::builder()
+        .name(name.to_string())
+        .publish_folder(publish_folder)
+        .project_file(project_file)
+        .ftp_settings()
+            .ftp_host(ftp_host)
+            .ftp_port(ftp_port)
+            .ftp_user(ftp_user)
+            .ftp_password(ftp_password)
+            .end()
+        .database_settings()
+            .host(db_host)
+            .port(db_port)
+            .user(db_user)
+            .password(db_password)
+            .database(db_database)
+            .end()
+        .sql_script(sql_script)
+        .build()
+        .expect("Falha ao construir projeto");
 
     save_project(&project, &project_path, key)?;
-    crate::ui::write_success(&format!("Projeto '{}' criado com sucesso!", name));
+    write_success(&format!("Projeto '{}' criado com sucesso!", name));
     Ok(())
 }
 
-
 fn save_project(project: &Project, path: &PathBuf, key: &[u8; 32]) -> Result<(), String> {
-    // cria uma versão com senhas criptografadas para gravar
-    let to_save = Project {
-        name:           project.name.clone(),
-        publish_folder: project.publish_folder.clone(),
-        project_file:   project.project_file.clone(),
-        sql_script:     project.sql_script.clone(),
-        ftp_settings: FtpSettings {
-            ftp_host:     project.ftp_settings.ftp_host.clone(),
-            ftp_port:     project.ftp_settings.ftp_port,
-            ftp_user:     project.ftp_settings.ftp_user.clone(),
-            ftp_password: crypto::encrypt(&project.ftp_settings.ftp_password, key)?,
-        },
-        database_settings: DatabaseSettings {
-            host:     project.database_settings.host.clone(),
-            port:     project.database_settings.port,
-            user:     project.database_settings.user.clone(),
-            password: crypto::encrypt(&project.database_settings.password, key)?,
-            database: project.database_settings.database.clone(),
-        },
-    };    
-    
+    // cria uma versão com senhas criptografadas para gravar    
+    let to_save = Project::builder()
+        .name(project.name.to_string())
+        .publish_folder(project.publish_folder.to_string())
+        .project_file(project.project_file.to_string())
+        .ftp_settings()
+            .ftp_host(project.ftp_settings.ftp_host.to_string())
+            .ftp_port(project.ftp_settings.ftp_port)
+            .ftp_user(project.ftp_settings.ftp_user.to_string())
+            .ftp_password(encrypt(&project.ftp_settings.ftp_password, key)?)
+            .end()
+        .database_settings()
+            .host(project.database_settings.host.to_string())
+            .port(project.database_settings.port)
+            .user(project.database_settings.user.to_string())
+            .password(encrypt(&project.database_settings.password, key)?)
+            .database(project.database_settings.database.to_string())
+            .end()
+        .sql_script(project.sql_script.to_string())
+        .build()
+        .expect("Falha ao construir projeto");    
+
     let json = serde_json::to_string_pretty(&to_save)
         .map_err(|e| format!("Erro ao serializar projeto: {}", e))?;
 
-    fs::create_dir_all(path.parent().unwrap())
+
+        std::fs::create_dir_all(path.parent().unwrap())
         .map_err(|e| format!("Erro ao criar pasta projects: {}", e))?;
 
-    fs::write(path, json)
+    std::fs::write(path, json)
         .map_err(|e| format!("Erro ao gravar arquivo: {}", e))?;
 
     println!();
@@ -173,10 +178,10 @@ pub fn load_project(name: &str, key: &[u8; 32]) -> Result<Project, String> {
     let mut project = find_project_case_insensitive(name)?;
 
     project.ftp_settings.ftp_password =
-        crypto::decrypt(&project.ftp_settings.ftp_password, key)?;
+        decrypt(&project.ftp_settings.ftp_password, key)?;
 
     project.database_settings.password =
-        crypto::decrypt(&project.database_settings.password, key)?;
+        decrypt(&project.database_settings.password, key)?;
 
     Ok(project)
 }
@@ -297,7 +302,7 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
             match $expr {
                 Some(v) => v,
                 None => {
-                    crate::ui::write_warning("Edição cancelada. Nenhuma alteração foi salva.");
+                    write_warning("Edição cancelada. Nenhuma alteração foi salva.");
                     return Ok(());
                 }
             }
@@ -311,7 +316,7 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
     println!();
 
     println!("  — Geral —");
-    let project_file = ask_or_cancel!(input::ask_validated_with_default(
+    let project_file = ask_or_cancel!(ask_validated_with_default(
         "Caminho do arquivo .csproj",
         &project.project_file,
         |v| {
@@ -325,7 +330,7 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
         },
     ));
 
-    let publish_folder = ask_or_cancel!(input::ask_validated_with_default(
+    let publish_folder = ask_or_cancel!(ask_validated_with_default(
         "Pasta de publicação",
         &project.publish_folder,
         |v| {
@@ -339,7 +344,7 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
 
     println!();
     println!("  — FTP —");
-    let ftp_host = ask_or_cancel!(input::ask_validated_with_default(
+    let ftp_host = ask_or_cancel!(ask_validated_with_default(
         "Host FTP",
         &project.ftp_settings.ftp_host,
         |v| {
@@ -347,12 +352,12 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
         },
     ));
 
-    let ftp_port     = ask_or_cancel!(input::ask_u16_with_default(
+    let ftp_port     = ask_or_cancel!(ask_u16_with_default(
         "Porta FTP",
         project.ftp_settings.ftp_port
     ));
 
-    let ftp_user     = ask_or_cancel!(input::ask_validated_with_default(
+    let ftp_user     = ask_or_cancel!(ask_validated_with_default(
         "Usuário FTP",
         &project.ftp_settings.ftp_user,
         |v| {
@@ -361,14 +366,14 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
     ));
 
     println!("  Senha FTP atual: (oculta) — pressione Enter para manter ou digite nova senha");
-    let ftp_password = ask_or_cancel!(input::ask_password_optional(
+    let ftp_password = ask_or_cancel!(ask_password_optional(
         "Nova senha FTP",
         &project.ftp_settings.ftp_password
     ));
 
     println!();
     println!("  — Banco de Dados —");
-    let db_host = ask_or_cancel!(input::ask_validated_with_default(
+    let db_host = ask_or_cancel!(ask_validated_with_default(
         "Endereço do banco de dados",
         &project.database_settings.host,
         |v| {
@@ -376,12 +381,12 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
         },
     ));
 
-    let db_port = ask_or_cancel!(input::ask_u16_with_default(
+    let db_port = ask_or_cancel!(ask_u16_with_default(
         "Porta do banco de dados",
         project.database_settings.port
     ));
 
-    let db_user = ask_or_cancel!(input::ask_validated_with_default(
+    let db_user = ask_or_cancel!(ask_validated_with_default(
         "Usuário do banco de dados",
         &project.database_settings.user,
         |v| {
@@ -390,12 +395,12 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
     ));
 
     println!("  Senha do banco atual: (oculta) — pressione Enter para manter ou digite nova senha");
-    let db_password = ask_or_cancel!(input::ask_password_optional(
+    let db_password = ask_or_cancel!(ask_password_optional(
         "Nova senha do banco",
         &project.database_settings.password
     ));
 
-    let db_database = ask_or_cancel!(input::ask_validated_with_default(
+    let db_database = ask_or_cancel!(ask_validated_with_default(
         "Nome do banco de dados",
         &project.database_settings.database,
         |v| {
@@ -404,47 +409,48 @@ pub fn edit_project_interactive(name: &str, key: &[u8; 32]) -> Result<(), String
     ));
 
     let sql_script = loop {
-        match input::ask_optional_with_default(
+        match ask_optional_with_default(
             "Caminho do script SQL (.sql ou .txt)",
             &project.sql_script,
         ) {
             None => {
-                crate::ui::write_warning("Edição cancelada. Nenhuma alteração foi salva.");
+                write_warning("Edição cancelada. Nenhuma alteração foi salva.");
                 return Ok(());
             }
             Some(path) if path.is_empty() => break path.to_string(),
             Some(path) => match validate_sql_script(&path) {
                 Ok(_) => {
-                    crate::ui::write_success("Script SQL validado.");
+                    write_success("Script SQL validado.");
                     break path;
                 }
-                Err(msg) => crate::ui::write_error(&msg),
+                Err(msg) => write_error(&msg),
             },
         }
     };
 
-    let updated = Project {
-        name: project.name.clone(),
-        publish_folder,
-        project_file,
-        ftp_settings: FtpSettings {
-            ftp_host,
-            ftp_port,
-            ftp_user,
-            ftp_password,
-        },
-        database_settings: DatabaseSettings {
-            host:     db_host,
-            port:     db_port,
-            user:     db_user,
-            password: db_password,
-            database: db_database,
-        },
-        sql_script,
-    };
+    let updated = Project::builder()
+        .name(name.to_string())
+        .publish_folder(publish_folder)
+        .project_file(project_file)
+        .ftp_settings()
+            .ftp_host(ftp_host)
+            .ftp_port(ftp_port)
+            .ftp_user(ftp_user)
+            .ftp_password(ftp_password)
+            .end()
+        .database_settings()
+            .host(db_host)
+            .port(db_port)
+            .user(db_user)
+            .password(db_password)
+            .database(db_database)
+            .end()
+        .sql_script(sql_script)
+        .build()
+        .expect("Falha ao construir projeto");    
 
     save_project(&updated, &project_path, key)?;
-    crate::ui::write_success(&format!("Projeto '{}' atualizado com sucesso!", updated.name));
+    write_success(&format!("Projeto '{}' atualizado com sucesso!", updated.name));
     Ok(())
 }
 
@@ -465,8 +471,8 @@ pub fn export_project(name: &str, dest_path: &str, key: &[u8; 32]) -> Result<(),
         dest.join(format!("{}.d2mproj", project.name))
     };
 
-    let ftp_password = crypto::decrypt(&project.ftp_settings.ftp_password, key)?;
-    let db_password = crypto::decrypt(&project.database_settings.password, key)?;
+    let ftp_password = decrypt(&project.ftp_settings.ftp_password, key)?;
+    let db_password = decrypt(&project.database_settings.password, key)?;
 
     // exporta com senha ofuscada
     let export = ProjectExport {

@@ -2,8 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use suppaftp::FtpStream;
 use rayon::prelude::*;
-use crate::logger;
-use crate::projects::{Project, FtpSettings};
+use crate::shared::logger;
+use crate::entities::{Project, FtpSettings};
 
 const PARALLEL_CONNECTIONS: usize = 3;
 
