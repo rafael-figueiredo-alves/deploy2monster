@@ -1,9 +1,12 @@
-use mysql::{Pool, prelude::Queryable, OptsBuilder};
-use crate::shared::logger;
 use crate::entities::project::Project;
+use crate::shared::db_errors::{
+    friendly_mysql_error, DatabaseError, StatementFailure,
+};
+use crate::shared::logger;
+use mysql::{prelude::Queryable, OptsBuilder, Pool};
 use std::fs;
 
-pub fn run(project: &Project) -> Result<(), String> {
+pub fn run(project: &Project) -> Result<(), DatabaseError> {
     let script_path = &project.sql_script;
 
     if script_path.is_empty() {
@@ -11,10 +14,13 @@ pub fn run(project: &Project) -> Result<(), String> {
         return Ok(());
     }
 
-    let content = fs::read_to_string(script_path)
-        .map_err(|e| format!("Erro ao ler script SQL '{}': {}", script_path, e))?;
+    let content = fs::read_to_string(script_path).map_err(|e| DatabaseError::ScriptRead {
+        path: script_path.to_string(),
+        detail: e.to_string(),
+    })?;
 
     let db = &project.database_settings;
+    let target = format!("{}:{}/{}", db.host, db.port, db.database);
 
     logger::info(&format!(
         "Conectando ao banco: {}@{}:{}/{}",
@@ -28,26 +34,21 @@ pub fn run(project: &Project) -> Result<(), String> {
         .pass(Some(&db.password))
         .db_name(Some(&db.database));
 
-    let pool = Pool::new(opts)
-        .map_err(|e| {
-            if e.to_string().contains("Access denied") {
-                format!(
-                    "Acesso negado ao banco '{}'. Verifique usuário, senha e se o acesso remoto está habilitado no painel.",
-                    db.host
-                )
-            } else {
-                format!("Erro ao conectar ao banco: {}", e)
-            }
-        })?;
+    let pool = Pool::new(opts).map_err(|e| DatabaseError::Connection {
+        target: target.clone(),
+        detail: friendly_mysql_error(&e, &db.host, db.port, &db.database, &db.user),
+    })?;
 
-    let mut conn = pool.get_conn()
-        .map_err(|e| format!("Erro ao obter conexão: {}", e))?;
+    let mut conn = pool.get_conn().map_err(|e| DatabaseError::Connection {
+        target: target.clone(),
+        detail: friendly_mysql_error(&e, &db.host, db.port, &db.database, &db.user),
+    })?;
 
     logger::info("Executando script SQL...");
 
     let statements = parse_statements(&content);
     let total = statements.len();
-    let mut errors = 0;
+    let mut failures = Vec::new();
 
     for (i, stmt) in statements.iter().enumerate() {
         let preview = preview_stmt(stmt);
@@ -56,24 +57,31 @@ pub fn run(project: &Project) -> Result<(), String> {
                 logger::info(&format!("[{}/{}] OK — {}", i + 1, total, preview));
             }
             Err(e) => {
-                errors += 1;
+                let detail = friendly_mysql_error(&e, &db.host, db.port, &db.database, &db.user);
                 logger::error(&format!("[{}/{}] ERRO — {}", i + 1, total, preview));
-                logger::error(&format!("         Detalhe: {}", e));
+                logger::error(&format!("         Detalhe: {}", detail));
+                failures.push(StatementFailure {
+                    index: i + 1,
+                    preview,
+                    detail,
+                });
             }
         }
     }
 
-    if errors > 0 {
+    if !failures.is_empty() {
         logger::warn(&format!(
             "Script concluído com {} erro(s) de {} statement(s).",
-            errors, total
-        ));
-    } else {
-        logger::info(&format!(
-            "Script concluído. {} statement(s) executados com sucesso.",
+            failures.len(),
             total
         ));
+        return Err(DatabaseError::QueryFailures { total, failures });
     }
+
+    logger::info(&format!(
+        "Script concluído. {} statement(s) executados com sucesso.",
+        total
+    ));
 
     Ok(())
 }
@@ -111,7 +119,7 @@ fn parse_statements(content: &str) -> Vec<String> {
         if trimmed.ends_with(&delimiter) {
             let stmt = current
                 .trim()
-                .trim_end_matches(&delimiter as &str)
+                .trim_end_matches(delimiter.as_str())
                 .trim()
                 .to_string();
 

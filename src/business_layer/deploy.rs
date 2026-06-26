@@ -59,6 +59,7 @@ pub fn run_deploy(project: &Project, skip_sql: bool) {
         println!("  [3/3] Executando script SQL...");
         if let Err(e) = database::run(project) {
             logger::error(&format!("Falha no banco de dados: {}", e));
+            abort();
         }
     }
     println!();

@@ -50,9 +50,9 @@ impl FtpSettingsBuilder {
 }
 
 impl FtpSettings {
-    pub fn builder() -> FtpSettingsBuilder {
+/*     pub fn builder() -> FtpSettingsBuilder {
         FtpSettingsBuilder::default()
-    }
+    } */
 }
 
 // endregion
@@ -64,8 +64,8 @@ pub trait FtpSettingsParent {
 }
 
 pub struct FtpSettingsContext<P> {
-    parent: P,
-    builder: FtpSettingsBuilder,
+    pub parent: P,
+    pub builder: FtpSettingsBuilder,
 }
 
 impl<P> FtpSettingsContext<P>

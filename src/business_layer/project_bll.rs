@@ -1,5 +1,5 @@
 use crate::entities::project::Project;
-use crate::shared::{resolve_project_path};
+use crate::shared::path_functions::*;
 use crate::shared::message_functions::*;
 use crate::shared::input_functions::*;
 use crate::shared::crypto_functions::*;
@@ -475,25 +475,26 @@ pub fn export_project(name: &str, dest_path: &str, key: &[u8; 32]) -> Result<(),
     let db_password = decrypt(&project.database_settings.password, key)?;
 
     // exporta com senha ofuscada
-    let export = ProjectExport {
-        name:              project.name.clone(),
-        publish_folder:    project.publish_folder.clone(),
-        project_file:      project.project_file.clone(),
-        ftp_settings: FtpSettingsExport {
-            ftp_host:     project.ftp_settings.ftp_host.clone(),
-            ftp_port:     project.ftp_settings.ftp_port,
-            ftp_user:     project.ftp_settings.ftp_user.clone(),            
-            ftp_password: obfuscate(&ftp_password),
-        },
-        database_settings: DatabaseSettingsExport {
-            host:     project.database_settings.host.clone(),
-            port:     project.database_settings.port,
-            user:     project.database_settings.user.clone(),
-            password: obfuscate(&db_password),
-            database: project.database_settings.database.clone(),
-        },
-        sql_script: project.sql_script.clone(),
-    };
+    let export = Project::builder()
+        .name(project.name.to_string())
+        .publish_folder(project.publish_folder.to_string())
+        .project_file(project.project_file.to_string())
+        .ftp_settings()
+            .ftp_host(project.ftp_settings.ftp_host.to_string())
+            .ftp_port(project.ftp_settings.ftp_port)
+            .ftp_user(project.ftp_settings.ftp_user.to_string())
+            .ftp_password(obfuscate(&ftp_password))
+            .end()
+        .database_settings()
+            .host(project.database_settings.host.to_string())
+            .port(project.database_settings.port)
+            .user(project.database_settings.user.to_string())
+            .password(obfuscate(&db_password))
+            .database(project.database_settings.database.to_string())
+            .end()
+        .sql_script(project.sql_script.to_string())
+        .build()
+        .expect("Falha ao construir projeto");     
 
     let json = serde_json::to_string_pretty(&export)
         .map_err(|e| format!("Erro ao serializar projeto: {}", e))?;
@@ -522,7 +523,7 @@ pub fn import_project(file_path: &str, key: &[u8; 32]) -> Result<(), String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Erro ao ler arquivo: {}", e))?;
 
-    let exported: ProjectExport = serde_json::from_str(&content)
+    let exported: Project = serde_json::from_str(&content)
         .map_err(|e| format!("Erro ao interpretar arquivo de projeto: {}", e))?;
 
     // verifica se já existe projeto com mesmo nome
@@ -539,25 +540,26 @@ pub fn import_project(file_path: &str, key: &[u8; 32]) -> Result<(), String> {
     let db_password_plain  = deobfuscate(&exported.database_settings.password)?;
 
     // monta projeto com senhas descriptografadas para re-criptografar
-    let project = Project {
-        name:           exported.name.clone(),
-        publish_folder: exported.publish_folder.clone(),
-        project_file:   exported.project_file.clone(),
-        sql_script:     exported.sql_script.clone(),
-        ftp_settings: FtpSettings {
-            ftp_host:     exported.ftp_settings.ftp_host.clone(),
-            ftp_port:     exported.ftp_settings.ftp_port,
-            ftp_user:     exported.ftp_settings.ftp_user.clone(),
-            ftp_password: ftp_password_plain,
-        },
-        database_settings: DatabaseSettings {
-            host:     exported.database_settings.host.clone(),
-            port:     exported.database_settings.port,
-            user:     exported.database_settings.user.clone(),
-            password: db_password_plain,
-            database: exported.database_settings.database.clone(),
-        },
-    };
+    let project = Project::builder()
+        .name(exported.name.to_string())
+        .publish_folder(exported.publish_folder.to_string())
+        .project_file(exported.project_file.to_string())
+        .ftp_settings()
+            .ftp_host(exported.ftp_settings.ftp_host.to_string())
+            .ftp_port(exported.ftp_settings.ftp_port)
+            .ftp_user(exported.ftp_settings.ftp_user.to_string())
+            .ftp_password(ftp_password_plain)
+            .end()
+        .database_settings()
+            .host(exported.database_settings.host.to_string())
+            .port(exported.database_settings.port)
+            .user(exported.database_settings.user.to_string())
+            .password(db_password_plain)
+            .database(exported.database_settings.database.to_string())
+            .end()
+        .sql_script(exported.sql_script.to_string())
+        .build()
+        .expect("Falha ao construir projeto");  
 
     // salva já com a criptografia local
     save_project(&project, &dest_path, key)?;

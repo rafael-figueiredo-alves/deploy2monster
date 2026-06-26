@@ -71,33 +71,33 @@ target\release\deploy2monster.exe -help
 
 ### Ajuda e versão
 
-- `-help`: mostra a lista de comandos disponíveis
-- `-version`: exibe a versão atual do aplicativo
+- `--help`: mostra a lista de comandos disponíveis
+- `--version`: exibe a versão atual do aplicativo
 
 ### Projetos
 
-- `-new <nome_do_projeto>`: cria um novo arquivo `.d2mproj`
-- `-edit <nome_do_projeto>`: edita um projeto existente
-- `-list`: lista os projetos cadastrados
-- `-delete <nome_do_projeto>`: remove um projeto cadastrado
-- `-export <nome_do_projeto> <caminho>`: exporta um projeto para o caminho informado
-- `-import <caminho_arquivo.d2mproj>`: importa um projeto exportado
+- `--new <nome_do_projeto>`: cria um novo arquivo `.d2mproj`
+- `--edit <nome_do_projeto>`: edita um projeto existente
+- `--list`: lista os projetos cadastrados
+- `--delete <nome_do_projeto>`: remove um projeto cadastrado
+- `--export <nome_do_projeto> <caminho>`: exporta um projeto para o caminho informado
+- `--import <caminho_arquivo.d2mproj>`: importa um projeto exportado
 
 ### Deploy e validação
 
-- `-deploy <nome_do_projeto> [--skip-sql]`: executa o deploy completo
-- `-dbUpdate <nome_do_projeto>`: executa apenas a etapa de banco de dados
-- `-test <nome_do_projeto>`: testa FTP e banco de dados
-- `-logs <nome_do_projeto>`: lista logs do projeto e permite abrir um log no terminal
+- `--deploy <nome_do_projeto> [--skip-sql]`: executa o deploy completo
+- `--dbUpdate <nome_do_projeto>`: executa apenas a etapa de banco de dados e retorna erros de conexão, autenticação, banco inexistente e falhas de SQL de forma centralizada
+- `--test <nome_do_projeto>`: testa FTP e banco de dados
+- `--logs <nome_do_projeto>`: lista logs do projeto e permite abrir um log no terminal
 
 ## Fluxo de deploy
 
-Quando o comando `-deploy` é executado, o fluxo atual é:
+Quando o comando `--deploy` é executado, o fluxo atual é:
 
 1. valida as configurações do projeto
 2. executa `dotnet publish` em `Release`
 3. envia os arquivos publicados via FTP
-4. executa o script SQL, se configurado
+4. executa o script SQL, se configurado, e interrompe o fluxo se houver falha na etapa de banco
 5. remove logs antigos do projeto com mais de 30 dias
 
 Se a opção `--skip-sql` for usada, a etapa de banco é ignorada.
@@ -107,7 +107,7 @@ Se a opção `--skip-sql` for usada, a etapa de banco é ignorada.
 Exemplo:
 
 ```powershell
-cargo run -- -new MeuProjeto
+cargo run -- --new MeuProjeto
 ```
 
 O assistente interativo solicita:
@@ -123,11 +123,11 @@ Durante a criação, o script SQL é validado de forma simples antes de salvar o
 ## Exemplo de uso
 
 ```powershell
-cargo run -- -new SiteCliente
-cargo run -- -list
-cargo run -- -test SiteCliente
-cargo run -- -deploy SiteCliente
-cargo run -- -logs SiteCliente
+cargo run -- --new SiteCliente
+cargo run -- --list
+cargo run -- --test SiteCliente
+cargo run -- --deploy SiteCliente
+cargo run -- --logs SiteCliente
 ```
 
 ## Formato dos projetos
@@ -171,7 +171,7 @@ As senhas são regravadas criptografadas ao salvar localmente. Ao exportar um pr
 
 ## Observações
 
-- A CLI usa comandos com hífen, como `-new` e `-deploy`.
+- A CLI usa comandos com hífen, como `--new` e `--deploy`.
 - O deploy foi pensado para cenários Windows, especialmente para desenvolvedores .NET.
 - O aplicativo ainda não faz deploy completo sem interação: criação, edição, confirmação e visualização de logs seguem um fluxo guiado.
 

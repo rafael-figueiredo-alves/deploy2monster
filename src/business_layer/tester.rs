@@ -1,6 +1,8 @@
 use crate::entities::project::Project;
+use crate::shared::db_errors::friendly_mysql_error;
+use crate::shared::ftp_errors::friendly_ftp_error;
+use mysql::{OptsBuilder, Pool};
 use suppaftp::FtpStream;
-use mysql::{Pool, OptsBuilder};
 
 pub fn run(project: &Project) {
     println!();
@@ -22,20 +24,26 @@ fn test_ftp(project: &Project) {
     crate::shared::message_functions::write_info(&format!("Conectando em {}...", host_port));
 
     let mut stream = match FtpStream::connect(&host_port) {
-        Ok(s)  => {
+        Ok(s) => {
             crate::shared::message_functions::write_success("Servidor FTP alcançado.");
             s
         }
         Err(e) => {
-            crate::shared::message_functions::write_error(&format!("Falha ao conectar: {}", e));
+            crate::shared::message_functions::write_error(&friendly_ftp_error(
+                &e.to_string(),
+                &host_port,
+            ));
             return;
         }
     };
 
     match stream.login(&ftp.ftp_user, &ftp.ftp_password) {
-        Ok(_)  => crate::shared::message_functions::write_success("Autenticação FTP bem-sucedida."),
+        Ok(_) => crate::shared::message_functions::write_success("Autenticação FTP bem-sucedida."),
         Err(e) => {
-            crate::shared::message_functions::write_error(&format!("Falha na autenticação: {}", e));
+            crate::shared::message_functions::write_error(&friendly_ftp_error(
+                &e.to_string(),
+                &host_port,
+            ));
             stream.quit().ok();
             return;
         }
@@ -43,7 +51,10 @@ fn test_ftp(project: &Project) {
 
     match stream.pwd() {
         Ok(dir) => crate::shared::message_functions::write_info(&format!("Pasta remota atual: {}", dir)),
-        Err(e)  => crate::shared::message_functions::write_warning(&format!("Não foi possível obter pasta remota: {}", e)),
+        Err(e) => crate::shared::message_functions::write_warning(&friendly_ftp_error(
+            &e.to_string(),
+            &host_port,
+        )),
     }
 
     match stream.nlst(Some("/wwwroot")) {
@@ -51,7 +62,10 @@ fn test_ftp(project: &Project) {
             "/wwwroot acessível — {} arquivo(s) encontrado(s).",
             files.len()
         )),
-        Err(e) => crate::shared::message_functions::write_warning(&format!("/wwwroot não acessível: {}", e)),
+        Err(e) => crate::shared::message_functions::write_warning(&friendly_ftp_error(
+            &e.to_string(),
+            "/wwwroot",
+        )),
     }
 
     stream.quit().ok();
@@ -76,20 +90,32 @@ fn test_database(project: &Project) {
         .db_name(Some(&db.database));
 
     let pool = match Pool::new(opts) {
-        Ok(p)  => p,
+        Ok(p) => p,
         Err(e) => {
-            crate::shared::message_functions::write_error(&format!("Falha ao conectar: {}", e));
+            crate::shared::message_functions::write_error(&friendly_mysql_error(
+                &e,
+                &db.host,
+                db.port,
+                &db.database,
+                &db.user,
+            ));
             return;
         }
     };
 
     let mut conn = match pool.get_conn() {
-        Ok(c)  => {
+        Ok(c) => {
             crate::shared::message_functions::write_success("Conexão com banco estabelecida.");
             c
         }
         Err(e) => {
-            crate::shared::message_functions::write_error(&format!("Falha ao obter conexão: {}", e));
+            crate::shared::message_functions::write_error(&friendly_mysql_error(
+                &e,
+                &db.host,
+                db.port,
+                &db.database,
+                &db.user,
+            ));
             return;
         }
     };
@@ -97,15 +123,22 @@ fn test_database(project: &Project) {
     // testa com query simples
     use mysql::prelude::Queryable;
     match conn.query_drop("SELECT 1") {
-        Ok(_)  => crate::shared::message_functions::write_success("Query de teste executada com sucesso."),
-        Err(e) => crate::shared::message_functions::write_error(&format!("Falha na query de teste: {}", e)),
+        Ok(_) => crate::shared::message_functions::write_success("Query de teste executada com sucesso."),
+        Err(e) => crate::shared::message_functions::write_error(&friendly_mysql_error(
+            &e,
+            &db.host,
+            db.port,
+            &db.database,
+            &db.user,
+        )),
     }
 
     // verifica quantidade de tabelas
-    match conn.query_first::<u64, _>(
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()"
-    ) {
-        Ok(Some(count)) => crate::shared::message_functions::write_info(&format!("Banco possui {} tabela(s).", count)),
+    match conn.query_first::<u64, _>("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()")
+    {
+        Ok(Some(count)) => {
+            crate::shared::message_functions::write_info(&format!("Banco possui {} tabela(s).", count))
+        }
         _ => {}
     }
 }

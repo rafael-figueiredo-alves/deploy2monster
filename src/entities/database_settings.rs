@@ -58,9 +58,9 @@ impl DatabaseSettingsBuilder {
 }
 
 impl DatabaseSettings {
-    pub fn builder() -> DatabaseSettingsBuilder {
+/*     pub fn builder() -> DatabaseSettingsBuilder {
         DatabaseSettingsBuilder::default()
-    }
+    } */
 }
 
 // endregion
@@ -72,8 +72,8 @@ pub trait DatabaseSettingsParent {
 }
 
 pub struct DatabaseSettingsContext<P> {
-    parent: P,
-    builder: DatabaseSettingsBuilder,
+    pub parent: P,
+    pub builder: DatabaseSettingsBuilder,
 }
 
 impl<P> DatabaseSettingsContext<P>
