@@ -200,15 +200,39 @@ fn clean_remote_wwwroot(stream: &mut FtpStream) -> Result<(), FtpError> {
     Ok(())
 }
 
+/// Cria o diretório remoto apenas se ele ainda não existir.
+/// Se o `mkdir` falhar, confirma via `cwd` se a pasta já está lá
+/// antes de considerar o erro fatal.
+fn ensure_remote_dir(stream: &mut FtpStream, remote_dir: &str) -> Result<(), FtpError> {
+    if let Err(mkdir_err) = stream.mkdir(remote_dir) {
+        // Guarda o diretório atual pra restaurar depois do teste
+        let previous_dir = stream.pwd().ok();
+
+        let already_exists = stream.cwd(remote_dir).is_ok();
+
+        // Restaura o diretório anterior pra não afetar chamadas seguintes
+        if let Some(prev) = previous_dir {
+            let _ = stream.cwd(&prev);
+        }
+
+        if !already_exists {
+            return Err(FtpError::MakeDir {
+                path: remote_dir.to_string(),
+                detail: friendly_ftp_error(&mkdir_err.to_string(), remote_dir),
+            });
+        }
+        // Se already_exists == true, ignora o erro do mkdir e segue o fluxo
+    }
+
+    Ok(())
+}
+
 fn create_remote_dirs(
     stream: &mut FtpStream,
     local_dir: &Path,
     remote_dir: &str,
 ) -> Result<(), FtpError> {
-    stream.mkdir(remote_dir).map_err(|e| FtpError::MakeDir {
-        path: remote_dir.to_string(),
-        detail: friendly_ftp_error(&e.to_string(), remote_dir),
-    })?;
+    ensure_remote_dir(stream, remote_dir)?;
 
     if let Ok(entries) = fs::read_dir(local_dir) {
         for entry in entries.flatten() {
