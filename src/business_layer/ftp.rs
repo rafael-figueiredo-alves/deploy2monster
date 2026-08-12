@@ -185,16 +185,54 @@ fn connect(ftp: &FtpSettings) -> Result<FtpStream, FtpError> {
 }
 
 fn clean_remote_wwwroot(stream: &mut FtpStream) -> Result<(), FtpError> {
-    let entries = stream.nlst(Some("/wwwroot")).map_err(|e| FtpError::ListRemote {
-        path: "/wwwroot".to_string(),
-        detail: friendly_ftp_error(&e.to_string(), "/wwwroot"),
+    clean_remote_dir_recursive(stream, "/wwwroot")
+}
+
+fn clean_remote_dir_recursive(stream: &mut FtpStream, remote_dir: &str) -> Result<(), FtpError> {
+    let entries = stream.nlst(Some(remote_dir)).map_err(|e| FtpError::ListRemote {
+        path: remote_dir.to_string(),
+        detail: friendly_ftp_error(&e.to_string(), remote_dir),
     })?;
 
     for entry in entries {
-        stream.rm(&entry).map_err(|e| FtpError::RemoveRemote {
-            path: entry.clone(),
-            detail: friendly_ftp_error(&e.to_string(), &entry),
-        })?;
+        let name = entry.rsplit('/').next().unwrap_or(&entry);
+        if name == "." || name == ".." {
+            continue;
+        }
+
+        // Tenta remover como arquivo primeiro (caso mais comum)
+        match stream.rm(&entry) {
+            Ok(_) => continue,
+            Err(rm_err) => {
+                // Falhou: pode ser (a) uma pasta, ou (b) um arquivo travado (ex: DLL em uso pelo IIS)
+                let previous_dir = stream.pwd().ok();
+                let is_dir = stream.cwd(&entry).is_ok();
+                if let Some(prev) = &previous_dir {
+                    let _ = stream.cwd(prev);
+                }
+
+                if is_dir {
+                    // É pasta: limpa o conteúdo recursivamente e então remove a pasta
+                    clean_remote_dir_recursive(stream, &entry)?;
+                    stream.rmdir(&entry).map_err(|e| FtpError::RemoveRemote {
+                        path: entry.clone(),
+                        detail: friendly_ftp_error(&e.to_string(), &entry),
+                    })?;
+                } else if entry.ends_with("aspnetcorev2_inprocess.dll") {
+                    // Arquivo travado pelo IIS enquanto o app está rodando — será sobrescrito no upload
+                    logger::warn(&format!(
+                        "  ⚠ Não foi possível remover {} (em uso pelo IIS) — será sobrescrito no upload",
+                        entry
+                    ));
+                } else {
+                    // Erro real e inesperado — propaga
+                    return Err(FtpError::RemoveRemote {
+                        path: entry.clone(),
+                        detail: friendly_ftp_error(&rm_err.to_string(), &entry),
+                    });
+                }
+            }
+        }
     }
 
     Ok(())
